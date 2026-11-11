@@ -1,0 +1,20 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "flicker-link-pro": {
+      "type": "streamable-http",
+      "url": "https://YOUR_DOMAIN/mcp",
+      "extensions": {
+        "com.openai": {
+          "auth": {
+            "type": "oauth2",
+            "authorization_url": "https://YOUR_DOMAIN/oauth/authorize",
+            "client_url": "https://YOUR_DOMAIN/oauth/token",
+            "scope": "laptop:control",
+            "authorization_content_type": "application/x-www-form-urlencoded"
+          }
+        }
+      }
+    }
+  }
+}

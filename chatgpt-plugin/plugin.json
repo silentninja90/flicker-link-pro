@@ -1,0 +1,25 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "author": {
+    "name": "Flicker Link Pro",
+    "email": "support@flickerlinkpro.app"
+  },
+  "name": "flicker-link-pro",
+  "version": "2.1.0",
+  "description": "Control your computer remotely from ChatGPT mobile or web across 66 system automation tools.",
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "capabilities": ["Interactive"],
+        "category": "Productivity",
+        "composerIcon": "./assets/flicker-link.png",
+        "defaultPrompt": "Check the status of my connected laptop and show available tools.",
+        "developerName": "Flicker Link Pro",
+        "displayName": "Flicker Link Pro",
+        "logo": "./assets/flicker-link.png",
+        "longDescription": "Remotely execute terminal commands, edit files, manage processes, and automate desktop actions from any ChatGPT device over an authenticated cloud relay.",
+        "shortDescription": "Remote PC control & automation"
+      }
+    }
+  }
+}
