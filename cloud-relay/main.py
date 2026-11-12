@@ -8,6 +8,7 @@ import base64
 import hashlib
 import html
 import json
+import logging
 import os
 from functools import lru_cache
 import pathlib
@@ -260,7 +261,9 @@ async def healthz():
     """DB readiness probe for staging; never expose connection details."""
     try:
         device_registry().list_owned("__flicker_health_check__")
-    except Exception:
+    except Exception as exc:
+        # Log the exception CLASS only. PostgreSQL exceptions can embed credentials.
+        logging.getLogger("flicker-link-pro").warning("Database health check failed: %s", type(exc).__name__)
         raise HTTPException(503, "Database unavailable") from None
     return {"status": "ok", "database": "ready"}
 
