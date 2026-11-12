@@ -21,6 +21,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 import jwt
 from jwt import PyJWKClient
 from jwt.exceptions import PyJWTError
+from device_registry import DeviceRegistry
 
 BASE_URL = os.getenv("BASE_URL", "https://flicker-link-pro.onrender.com").rstrip("/")
 RESOURCE = BASE_URL + "/mcp"
@@ -30,11 +31,36 @@ SECRET = os.getenv("FLICKER_SECRET", "")
 SCOPES = "laptop:control"
 CATALOG = json.loads((pathlib.Path(__file__).parent / "tool_catalog.json").read_text(encoding="utf-8"))
 ACTIVE_SOCKETS = {}
+ACTIVE_DEVICE_IDS = {}
 PENDING_CALLS = {}
 REDEEMED_CODES = set()
 # Authorization codes are invalidated on every process restart.
 PROCESS_CODE_KEY = secrets.token_urlsafe(48)
 app = FastAPI(title="Flicker Link Pro Cloud Relay", version="2.2.0")
+
+def device_registry():
+    db_path = os.environ.get("FLICKER_DB_PATH", "").strip()
+    if not db_path or not pathlib.Path(db_path).is_absolute():
+        raise HTTPException(503, "A persistent FLICKER_DB_PATH is required for device pairing")
+    if os.environ.get("RENDER"):
+        mount = pathlib.Path(os.environ.get("FLICKER_DISK_MOUNT", "/var/data")).resolve()
+        database = pathlib.Path(db_path).resolve()
+        if mount not in database.parents or not os.path.ismount(str(mount)):
+            raise HTTPException(503, "Device pairing requires a mounted persistent Render disk")
+    try:
+        return DeviceRegistry(db_path, server_secret())
+    except (OSError, ValueError) as exc:
+        raise HTTPException(503, "Durable device storage is unavailable") from exc
+
+async def disconnect_device(owner_sub, device_id):
+    if ACTIVE_DEVICE_IDS.get(owner_sub) != device_id:
+        return
+    ws = ACTIVE_SOCKETS.get(owner_sub)
+    if ws is not None:
+        try:
+            await ws.close(code=1008)
+        except RuntimeError:
+            pass
 
 def server_secret():
     if not SECRET or SECRET == "flicker-link-pro-secret-key-change-me" or len(SECRET) < 24:
@@ -223,14 +249,31 @@ async def devices(request: Request):
     user = session(request)
     if not user:
         return RedirectResponse("/auth/google/start?next=%2Fdevices")
+    registry = device_registry()
     email = html.escape(user.get("email", ""), quote=True)
     csrf = html.escape(user["csrf"], quote=True)
-    return HTMLResponse('<html><body style="font:18px sans-serif;max-width:700px;margin:60px auto">'
-        '<h2>Flicker Link Pro — Pair a computer</h2><p>Signed in as ' + email + '</p>'
-        '<p>Generate a time-limited pairing credential. Treat it as a password. Do not share it.</p>'
-        '<form action="/devices/pair" method="post"><input type="hidden" name="csrf" value="' + csrf + '">'
-        '<button type="submit">Generate device pairing credential</button></form>'
-        '<p><a href="/auth/logout">Sign out</a></p></body></html>')
+    items = registry.list_owned(user["sub"])
+    device_forms = []
+    for item in items:
+        name = html.escape(item["label"], quote=True)
+        identity = html.escape(item["id"], quote=True)
+        status = "Revoked" if item["revoked_at"] is not None else "Paired"
+        actions = "" if item["revoked_at"] is not None else (
+            '<form action="/devices/revoke" method="post">'
+            '<input type="hidden" name="csrf" value="' + csrf + '">'
+            '<input type="hidden" name="device_id" value="' + identity + '">'
+            '<button type="submit">Revoke this computer</button></form>')
+        device_forms.append('<li><strong>' + name + '</strong> - ' + status + actions + '</li>')
+    output = '<html><body style="font:18px sans-serif;max-width:780px;margin:55px auto">'
+    output += '<h2>Flicker Link Pro - Paired Computers</h2><p>Signed in as ' + email + '</p>'
+    output += '<ul>' + ''.join(device_forms) + '</ul>'
+    output += '<p>Devices stay paired until you revoke them or log out from the desktop app.</p>'
+    output += ('<form action="/devices/pair" method="post">'
+               '<input type="hidden" name="csrf" value="' + csrf + '">'
+               '<label>Computer name <input name="label" maxlength="80" value="Windows computer"></label> '
+               '<button type="submit">Pair a new computer</button></form>'
+               '<p><a href="/auth/logout">Sign out of website</a></p></body></html>')
+    return HTMLResponse(output, headers={"Cache-Control": "no-store"})
 
 @app.post("/devices/pair")
 async def pair(request: Request):
@@ -241,13 +284,49 @@ async def pair(request: Request):
     form = await request.form()
     if not secrets.compare_digest(str(form.get("csrf", "")), user["csrf"]):
         raise HTTPException(403, "Invalid CSRF token")
-    token = sign("device", user["sub"], BASE_URL + "/devices", 30 * 86400)
-    command = "python flicker_relay_agent.py --server " + BASE_URL + " --token " + token
-    return HTMLResponse('<html><body style="font:16px sans-serif;max-width:900px;margin:50px auto">'
-        '<h2>Your device pairing command</h2><p>Run this from the desktop-agent folder. '
-        'The pairing credential expires after 30 days and must be kept private.</p>'
-        '<pre style="white-space:pre-wrap;overflow-wrap:anywhere;background:#eee;padding:15px">' +
-        html.escape(command) + '</pre><p><a href="/devices">Back to devices</a></p></body></html>')
+    try:
+        created = device_registry().issue(user["sub"], str(form.get("label", "Windows computer")))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    command = "python flicker_relay_agent.py --server " + BASE_URL + " --token " + created["token"]
+    return HTMLResponse(
+        '<html><body style="font:16px sans-serif;max-width:900px;margin:50px auto">'
+        '<h2>One-time device pairing credential</h2>'
+        '<p>Run this on your computer once. The app then saves the pairing in Windows Credential Manager.'
+        ' Treat this credential like a password and do not share it.</p>'
+        '<pre style="white-space:pre-wrap;overflow-wrap:anywhere;background:#eee;padding:15px">'
+        + html.escape(command) +
+        '</pre><p><a href="/devices">Back to paired computers</a></p></body></html>',
+        headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
+
+@app.post("/devices/revoke")
+async def revoke_device(request: Request):
+    check_origin(request)
+    user = session(request)
+    if not user:
+        raise HTTPException(401, "Sign in first")
+    form = await request.form()
+    if not secrets.compare_digest(str(form.get("csrf", "")), user["csrf"]):
+        raise HTTPException(403, "Invalid CSRF token")
+    device_id = str(form.get("device_id", ""))
+    if not device_registry().revoke_owned(user["sub"], device_id):
+        raise HTTPException(404, "Device not found or already revoked")
+    await disconnect_device(user["sub"], device_id)
+    return RedirectResponse("/devices", status_code=303)
+
+@app.post("/devices/revoke-current")
+async def revoke_current(request: Request):
+    header = request.headers.get("authorization", "")
+    if not header.startswith("Bearer "):
+        raise HTTPException(401, "Missing device authorization")
+    token = header[7:]
+    registry = device_registry()
+    device = registry.authenticate(token)
+    if device is None:
+        raise HTTPException(401, "Device authorization revoked or invalid")
+    registry.revoke_credential(token)
+    await disconnect_device(device["sub"], device["id"])
+    return Response(status_code=204, headers={"Cache-Control": "no-store"})
 
 @app.get("/auth/logout")
 async def logout():
@@ -334,9 +413,13 @@ async def device_websocket(websocket: WebSocket):
         await websocket.close(code=1008)
         return
     try:
-        device = verify(header[7:], "device", BASE_URL + "/devices")
+        registry = device_registry()
+        device = registry.authenticate(header[7:])
+        if device is None:
+            await websocket.close(code=1008)
+            return
     except HTTPException:
-        await websocket.close(code=1008)
+        await websocket.close(code=1013)
         return
     sub = device["sub"]
     if sub in ACTIVE_SOCKETS:
@@ -346,6 +429,8 @@ async def device_websocket(websocket: WebSocket):
             pass
     await websocket.accept()
     ACTIVE_SOCKETS[sub] = websocket
+    ACTIVE_DEVICE_IDS[sub] = device["id"]
+    registry.touch(device["id"])
     try:
         while True:
             message = json.loads(await websocket.receive_text())
@@ -358,6 +443,7 @@ async def device_websocket(websocket: WebSocket):
     finally:
         if ACTIVE_SOCKETS.get(sub) is websocket:
             ACTIVE_SOCKETS.pop(sub, None)
+            ACTIVE_DEVICE_IDS.pop(sub, None)
 
 @app.post("/mcp")
 async def mcp(request: Request):
@@ -393,6 +479,9 @@ async def mcp(request: Request):
     if method == "ping":
         return {"jsonrpc": "2.0", "id": req_id, "result": {}}
     ws = ACTIVE_SOCKETS.get(account["sub"])
+    active_id = ACTIVE_DEVICE_IDS.get(account["sub"])
+    if ws is not None and (not active_id or not device_registry().is_active(active_id)):
+        ws = None
     if method == "tools/list" and ws is None:
         return {"jsonrpc": "2.0", "id": req_id, "result": {"tools": CATALOG}}
     if method not in ("tools/list", "tools/call"):

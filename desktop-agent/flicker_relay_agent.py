@@ -12,6 +12,8 @@ import json
 import os
 import webbrowser
 import websockets
+from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
 
 from credential_store import save_credential, load_credential, delete_credential
 from flicker_server import handle, CATALOG
@@ -96,6 +98,40 @@ async def run_relay(server_url: str, token: str):
             print("[ERROR]", type(exc).__name__, "retrying in 5 seconds.")
             await asyncio.sleep(5)
 
+def logout_pairing() -> bool:
+    """Revoke the server-side device credential before deleting the local copy."""
+    saved = load_credential()
+    if not saved:
+        delete_credential()
+        print("[LOGGED OUT] No pairing credential remains on this computer.")
+        return True
+    server, token = saved
+    if not server.startswith("https://"):
+        print("[LOGOUT FAILED] Refusing to send a credential over an insecure connection.")
+        return False
+    request = Request(
+        server.rstrip("/") + "/devices/revoke-current",
+        headers={"Authorization": "Bearer " + token},
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=15) as response:
+            if response.status != 204:
+                print("[LOGOUT FAILED] Server did not confirm revocation.")
+                return False
+    except HTTPError as exc:
+        if exc.code != 401:
+            print("[LOGOUT FAILED] Server did not confirm revocation.")
+            return False
+        # 401 means this credential is already invalid server-side.
+    except (URLError, TimeoutError, OSError):
+        print("[LOGOUT FAILED] Could not reach the server to revoke this computer.")
+        print("Saved pairing retained; retry logout when online or revoke from your web dashboard.")
+        return False
+    delete_credential()
+    print("[LOGGED OUT] Server authorization revoked and saved pairing removed.")
+    return True
+
 def main():
     parser = argparse.ArgumentParser(description="Flicker Link Pro Windows agent")
     parser.add_argument("--server", help="Optional HTTPS relay URL")
@@ -104,8 +140,8 @@ def main():
     parser.add_argument("--uninstall", action="store_true", help="Erase saved pairing before uninstall")
     args = parser.parse_args()
     if args.logout or args.uninstall:
-        delete_credential()
-        print("[OK] Saved pairing removed from Windows Credential Manager.")
+        if not logout_pairing():
+            raise SystemExit(1)
         return
     base, token = resolve_pairing(args.server, args.token)
     try:

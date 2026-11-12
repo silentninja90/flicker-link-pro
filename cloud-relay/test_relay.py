@@ -4,6 +4,13 @@ import os
 import re
 import secrets
 import urllib.parse
+import tempfile
+import atexit
+from pathlib import Path
+
+_registry_temp = tempfile.TemporaryDirectory()
+atexit.register(_registry_temp.cleanup)
+os.environ["FLICKER_DB_PATH"] = str(Path(_registry_temp.name) / "pairings.sqlite3")
 
 os.environ["FLICKER_SECRET"] = "test-only-" + "a" * 48
 os.environ["BASE_URL"] = "https://flicker-link-pro.onrender.com"
@@ -56,7 +63,7 @@ async def test():
                               headers={"Origin": BASE}, data={"csrf":csrf})
         assert x.status_code == 200
         match = re.search(r"--token\s+([A-Za-z0-9_.-]+)", x.text)
-        assert match and main.verify(match.group(1), "device", BASE + "/devices")["sub"] == account
+        assert match and main.device_registry().authenticate(match.group(1))["sub"] == account
         code = main.sign("auth_code", account, BASE + "/authcode", 90,
                          client_hash=main.digest(cid), redirect_uri=callback,
                          challenge=main.digest(verifier), resource=RESOURCE, scope="laptop:control")

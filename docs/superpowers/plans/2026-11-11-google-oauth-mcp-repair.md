@@ -20,7 +20,9 @@
 - Device pairing must be revocable before production release.
 - First Google login and device pairing happen once. Later launches/reboots automatically load the pairing from Windows Credential Manager.
 - Local logout and uninstall must erase the pairing. Deleting a shortcut alone cannot erase Windows credentials.
-- A durable cloud-side revocation registry and automatic credential renewal are required to avoid re-pairing after the current 30-day token expiry, without leaving unrevokable permanent credentials.
+- Device credentials are high-entropy, opaque, revocable, and remain paired until user logout/revocation; there is no 30-day expiry. The server stores only a keyed digest, and the Windows app stores its key in Credential Manager.
+- This long-lived key avoids repeated login but would be reusable if stolen until revoked; users must be able to revoke it through the authenticated dashboard.
+- FLICKER_DB_PATH must point to SQLite on an actual persistent disk. A Render Free web service has no persistent disk: do not deploy this backend there without upgrading or replacing the storage backend.
 
 ## Review Focus
 - An attacker reuses an authorization code after a Render restart.
