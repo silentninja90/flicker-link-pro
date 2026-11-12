@@ -255,6 +255,16 @@ async def google_callback(request: Request, state: str = "", code: str = ""):
     response.delete_cookie("flp_google_flow", path="/")
     return response
 
+@app.get("/healthz")
+async def healthz():
+    """DB readiness probe for staging; never expose connection details."""
+    try:
+        device_registry().list_owned("__flicker_health_check__")
+    except Exception:
+        raise HTTPException(503, "Database unavailable") from None
+    return {"status": "ok", "database": "ready"}
+
+
 @app.get("/")
 async def home(request: Request):
     user = session(request)
