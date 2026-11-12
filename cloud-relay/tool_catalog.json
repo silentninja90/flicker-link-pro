@@ -1,0 +1,1189 @@
+[
+  {
+    "name": "db_execute",
+    "description": "Execute SQL against a PostgreSQL connection string.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "connection_string": {
+          "type": "string",
+          "description": "PostgreSQL connection URI."
+        },
+        "sql": {
+          "type": "string",
+          "description": "SQL statement or script to execute."
+        }
+      },
+      "required": [
+        "connection_string",
+        "sql"
+      ]
+    }
+  },
+  {
+    "name": "read_application_logs",
+    "description": "Read the last lines of an application log file.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "log_path": {
+          "type": "string",
+          "description": "Path to the log file."
+        },
+        "tail_lines": {
+          "type": "integer",
+          "description": "Number of lines to return.",
+          "default": 100
+        }
+      },
+      "required": [
+        "log_path"
+      ]
+    }
+  },
+  {
+    "name": "create_project_backup",
+    "description": "Create a timestamped ZIP backup of a project folder.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "source_folder": {
+          "type": "string",
+          "description": "Project folder to archive."
+        },
+        "backup_vault": {
+          "type": "string",
+          "description": "Folder in which to write the archive."
+        }
+      },
+      "required": [
+        "source_folder",
+        "backup_vault"
+      ]
+    }
+  },
+  {
+    "name": "focus_and_type",
+    "description": "Focus a desktop window and send a key sequence.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "window_title": {
+          "type": "string",
+          "description": "Title text to locate."
+        },
+        "keys_to_send": {
+          "type": "array",
+          "description": "Keys passed to the desktop automation layer.",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "window_title",
+        "keys_to_send"
+      ]
+    }
+  },
+  {
+    "name": "mouse_move",
+    "description": "Move the mouse pointer to screen coordinates.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "integer"
+        },
+        "y": {
+          "type": "integer"
+        },
+        "duration": {
+          "type": "number",
+          "default": 0.0
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ]
+    }
+  },
+  {
+    "name": "keyboard_type",
+    "description": "Type text into the active desktop control.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "interval": {
+          "type": "number",
+          "default": 0.0
+        }
+      },
+      "required": [
+        "text"
+      ]
+    }
+  },
+  {
+    "name": "keyboard_press",
+    "description": "Press one key or send a key combination.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "keys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "keys"
+      ]
+    }
+  },
+  {
+    "name": "window_list",
+    "description": "List visible desktop windows and their bounds.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "window_action",
+    "description": "Activate, minimize, maximize, or close a desktop window.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "window_title": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string",
+          "description": "One of activate, minimize, maximize, close.",
+          "enum": [
+            "activate",
+            "minimize",
+            "maximize",
+            "close"
+          ]
+        }
+      },
+      "required": [
+        "window_title",
+        "action"
+      ]
+    }
+  },
+  {
+    "name": "system_resources",
+    "description": "Return CPU, memory, and disk usage information.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "process_list",
+    "description": "List the top processes by CPU usage.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "process_kill",
+    "description": "Terminate a process by PID.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "pid": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "pid"
+      ]
+    }
+  },
+  {
+    "name": "docker_containers",
+    "description": "List all Docker containers and their status.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "docker_action",
+    "description": "Start, stop, restart, or read logs for a Docker container.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "container_name_or_id": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "start",
+            "stop",
+            "restart",
+            "logs"
+          ]
+        }
+      },
+      "required": [
+        "container_name_or_id",
+        "action"
+      ]
+    }
+  },
+  {
+    "name": "network_info",
+    "description": "Return adapter and active-connection information on Windows.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "list_drives",
+    "description": "List available Windows drive roots.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "path_info",
+    "description": "Inspect whether a path exists and its basic metadata.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "browse_directory",
+    "description": "List the immediate contents of a directory.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "search_filename",
+    "description": "Search recursively for an exact filename under a root folder.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "root_dir": {
+          "type": "string"
+        },
+        "filename": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "root_dir",
+        "filename"
+      ]
+    }
+  },
+  {
+    "name": "read_file_text",
+    "description": "Read a UTF-8 text file.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "write_file_text",
+    "description": "Write UTF-8 text to a file, replacing its contents.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "content"
+      ]
+    }
+  },
+  {
+    "name": "read_file_base64_chunk",
+    "description": "Read a byte range from a file as base64.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "offset": {
+          "type": "integer"
+        },
+        "length": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "path",
+        "offset",
+        "length"
+      ]
+    }
+  },
+  {
+    "name": "write_file_base64_chunk",
+    "description": "Write base64-decoded bytes to a file.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "base64_data": {
+          "type": "string"
+        },
+        "append": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "path",
+        "base64_data"
+      ]
+    }
+  },
+  {
+    "name": "create_directory",
+    "description": "Create a directory and its parents if needed.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "copy_item",
+    "description": "Copy a file or directory to a destination.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "src": {
+          "type": "string"
+        },
+        "dst": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "src",
+        "dst"
+      ]
+    }
+  },
+  {
+    "name": "move_item",
+    "description": "Move a file or directory to a destination.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "src": {
+          "type": "string"
+        },
+        "dst": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "src",
+        "dst"
+      ]
+    }
+  },
+  {
+    "name": "delete_item",
+    "description": "Delete a file or directory.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "checksum_sha256",
+    "description": "Calculate a file's SHA-256 checksum.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "create_zip",
+    "description": "Create a ZIP archive from a source directory.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "zip_path": {
+          "type": "string"
+        },
+        "source_dir": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "zip_path",
+        "source_dir"
+      ]
+    }
+  },
+  {
+    "name": "unzip_to_folder",
+    "description": "Extract a ZIP archive into a folder.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "zip_path": {
+          "type": "string"
+        },
+        "extract_to": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "zip_path",
+        "extract_to"
+      ]
+    }
+  },
+  {
+    "name": "download_file_https",
+    "description": "Download an HTTPS resource to a local path.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string"
+        },
+        "save_path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "url",
+        "save_path"
+      ]
+    }
+  },
+  {
+    "name": "upload_file_https_put",
+    "description": "Upload a local file with an HTTP PUT request.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string"
+        },
+        "file_path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "url",
+        "file_path"
+      ]
+    }
+  },
+  {
+    "name": "screenshot",
+    "description": "Capture the current desktop screen and return it as an image.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "click",
+    "description": "Click the mouse at screen coordinates.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "integer"
+        },
+        "y": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ]
+    }
+  },
+  {
+    "name": "run_code",
+    "description": "Run a terminal command for up to 30 seconds.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string"
+        },
+        "working_directory": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "command"
+      ]
+    }
+  },
+  {
+    "name": "run_wsl",
+    "description": "Run a command through WSL for up to 30 seconds.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string"
+        },
+        "wsl_working_directory": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "command"
+      ]
+    }
+  },
+  {
+    "name": "get_config",
+    "description": "Flicker Link Pro local tool: get config",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "set_config",
+    "description": "Flicker Link Pro local tool: set config",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "values": {
+          "type": "object",
+          "description": "Editable local preferences"
+        }
+      },
+      "required": [
+        "values"
+      ]
+    }
+  },
+  {
+    "name": "who_am_i",
+    "description": "Flicker Link Pro local tool: who am i",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "get_file_info",
+    "description": "Flicker Link Pro local tool: get file info",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Local path"
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "list_directory",
+    "description": "Flicker Link Pro local tool: list directory",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Directory"
+        },
+        "offset": {
+          "type": "integer",
+          "description": "Result offset"
+        },
+        "page_size": {
+          "type": "integer",
+          "description": "Results per page; 0 returns all"
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "read_file",
+    "description": "Flicker Link Pro local tool: read file",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "File"
+        },
+        "offset": {
+          "type": "integer",
+          "description": "Byte offset"
+        },
+        "length": {
+          "type": "integer",
+          "description": "Bytes; 0 reads to EOF"
+        },
+        "base64": {
+          "type": "boolean",
+          "description": "Return binary base64"
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "read_multiple_files",
+    "description": "Flicker Link Pro local tool: read multiple files",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "offset": {
+          "type": "integer",
+          "description": "Byte offset"
+        },
+        "length": {
+          "type": "integer",
+          "description": "Bytes per file; 0 reads to EOF"
+        }
+      },
+      "required": [
+        "paths"
+      ]
+    }
+  },
+  {
+    "name": "write_file",
+    "description": "Flicker Link Pro local tool: write file",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "File"
+        },
+        "content": {
+          "type": "string",
+          "description": "Text"
+        },
+        "content_base64": {
+          "type": "string",
+          "description": "Binary"
+        },
+        "mode": {
+          "type": "string",
+          "description": "overwrite|create|append|at_offset"
+        },
+        "offset": {
+          "type": "integer",
+          "description": "Byte offset"
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
+  },
+  {
+    "name": "edit_block",
+    "description": "Flicker Link Pro local tool: edit block",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "File"
+        },
+        "old_text": {
+          "type": "string",
+          "description": "Text to replace"
+        },
+        "new_text": {
+          "type": "string",
+          "description": "Replacement"
+        },
+        "expected_matches": {
+          "type": "integer",
+          "description": "Exact replacement count"
+        }
+      },
+      "required": [
+        "path",
+        "old_text",
+        "new_text"
+      ]
+    }
+  },
+  {
+    "name": "write_pdf",
+    "description": "Flicker Link Pro local tool: write pdf",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "PDF path"
+        },
+        "content": {
+          "type": "string",
+          "description": "Text content"
+        },
+        "title": {
+          "type": "string",
+          "description": "Document title"
+        },
+        "page_size": {
+          "type": "string",
+          "description": "letter or A4"
+        }
+      },
+      "required": [
+        "path",
+        "content"
+      ]
+    }
+  },
+  {
+    "name": "move_file",
+    "description": "Flicker Link Pro local tool: move file",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "src": {
+          "type": "string",
+          "description": "Source file"
+        },
+        "dst": {
+          "type": "string",
+          "description": "Destination"
+        },
+        "overwrite": {
+          "type": "boolean",
+          "description": "Allow overwrite"
+        }
+      },
+      "required": [
+        "src",
+        "dst"
+      ]
+    }
+  },
+  {
+    "name": "list_devices",
+    "description": "Flicker Link Pro local tool: list devices",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "list_processes",
+    "description": "Flicker Link Pro local tool: list processes",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "start_process",
+    "description": "Flicker Link Pro local tool: start process",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "Shell command"
+        },
+        "working_directory": {
+          "type": "string",
+          "description": "Optional working directory"
+        }
+      },
+      "required": [
+        "command"
+      ]
+    }
+  },
+  {
+    "name": "interact_with_process",
+    "description": "Flicker Link Pro local tool: interact with process",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "type": "string",
+          "description": "Managed session ID"
+        },
+        "input": {
+          "type": "string",
+          "description": "Optional stdin"
+        },
+        "offset": {
+          "type": "integer",
+          "description": "Log byte offset"
+        },
+        "length": {
+          "type": "integer",
+          "description": "Log bytes; 0 reads all"
+        }
+      },
+      "required": [
+        "session_id"
+      ]
+    }
+  },
+  {
+    "name": "list_sessions",
+    "description": "Flicker Link Pro local tool: list sessions",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "force_terminate",
+    "description": "Flicker Link Pro local tool: force terminate",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "type": "string",
+          "description": "Managed session"
+        },
+        "pid": {
+          "type": "integer",
+          "description": "Arbitrary PID"
+        },
+        "confirm": {
+          "type": "boolean",
+          "description": "Required for arbitrary PID"
+        },
+        "hard": {
+          "type": "boolean",
+          "description": "Force kill"
+        }
+      }
+    }
+  },
+  {
+    "name": "kill_process",
+    "description": "Flicker Link Pro local tool: kill process",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "type": "string",
+          "description": "Managed session"
+        },
+        "pid": {
+          "type": "integer",
+          "description": "Arbitrary PID"
+        },
+        "confirm": {
+          "type": "boolean",
+          "description": "Required for arbitrary PID"
+        }
+      }
+    }
+  },
+  {
+    "name": "shutdown",
+    "description": "Flicker Link Pro local tool: shutdown",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "type": "string",
+          "description": "Managed process session; not OS shutdown"
+        }
+      },
+      "required": [
+        "session_id"
+      ]
+    }
+  },
+  {
+    "name": "start_search",
+    "description": "Flicker Link Pro local tool: start search",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "root": {
+          "type": "string",
+          "description": "Search root"
+        },
+        "filename_pattern": {
+          "type": "string",
+          "description": "Glob"
+        },
+        "content_query": {
+          "type": "string",
+          "description": "Text"
+        },
+        "regex": {
+          "type": "boolean",
+          "description": "Use regex"
+        },
+        "ignore_case": {
+          "type": "boolean",
+          "description": "Case insensitive"
+        }
+      },
+      "required": [
+        "root"
+      ]
+    }
+  },
+  {
+    "name": "get_more_search_results",
+    "description": "Flicker Link Pro local tool: get more search results",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "search_id": {
+          "type": "string",
+          "description": "Search ID"
+        },
+        "offset": {
+          "type": "integer",
+          "description": "Result offset"
+        },
+        "page_size": {
+          "type": "integer",
+          "description": "Page size; 0 returns all"
+        }
+      },
+      "required": [
+        "search_id"
+      ]
+    }
+  },
+  {
+    "name": "list_searches",
+    "description": "Flicker Link Pro local tool: list searches",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "stop_search",
+    "description": "Flicker Link Pro local tool: stop search",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "search_id": {
+          "type": "string",
+          "description": "Search ID"
+        }
+      },
+      "required": [
+        "search_id"
+      ]
+    }
+  },
+  {
+    "name": "get_recent_tool_calls",
+    "description": "Flicker Link Pro local tool: get recent tool calls",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "offset": {
+          "type": "integer",
+          "description": "Offset"
+        },
+        "page_size": {
+          "type": "integer",
+          "description": "Page size"
+        }
+      }
+    }
+  },
+  {
+    "name": "list_remote_tool_calls",
+    "description": "Flicker Link Pro local tool: list remote tool calls",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "offset": {
+          "type": "integer",
+          "description": "Offset"
+        },
+        "page_size": {
+          "type": "integer",
+          "description": "Page size"
+        }
+      }
+    }
+  },
+  {
+    "name": "get_tool_result",
+    "description": "Flicker Link Pro local tool: get tool result",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "call_id": {
+          "type": "string",
+          "description": "Tool call ID"
+        },
+        "offset": {
+          "type": "integer",
+          "description": "Byte offset"
+        },
+        "length": {
+          "type": "integer",
+          "description": "Byte length; 0 returns all"
+        }
+      },
+      "required": [
+        "call_id"
+      ]
+    }
+  },
+  {
+    "name": "review_device_call",
+    "description": "Flicker Link Pro local tool: review device call",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "call_id": {
+          "type": "string",
+          "description": "Tool call ID"
+        }
+      },
+      "required": [
+        "call_id"
+      ]
+    }
+  },
+  {
+    "name": "keep_tool_result",
+    "description": "Flicker Link Pro local tool: keep tool result",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "source_call_id": {
+          "type": "string",
+          "description": "Previous call"
+        },
+        "content": {
+          "type": "string",
+          "description": "Text to save"
+        }
+      }
+    }
+  },
+  {
+    "name": "get_usage_stats",
+    "description": "Flicker Link Pro local tool: get usage stats",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  {
+    "name": "track_ui_event",
+    "description": "Flicker Link Pro local tool: track ui event",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "event_type": {
+          "type": "string",
+          "description": "Event type"
+        },
+        "details": {
+          "type": "object",
+          "description": "Event metadata"
+        }
+      },
+      "required": [
+        "event_type"
+      ]
+    }
+  }
+]

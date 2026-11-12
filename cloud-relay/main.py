@@ -1,215 +1,420 @@
-import os
-import uuid
-import json
+"""Flicker Link Pro cloud relay: Google OIDC login and PKCE-protected MCP OAuth.
+
+Google confirms identity. This server issues audience-bound OAuth tokens for ChatGPT.
+Device pairing is available only in a Google-authenticated browser session.
+"""
 import asyncio
-from typing import Dict
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, Form, Query, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
-from jose import jwt
+import base64
+import hashlib
+import html
+import json
+import os
+import pathlib
+import secrets
+import time
+import uuid
+from urllib.parse import urlencode, urlsplit
 
-APP_SECRET = os.getenv("FLICKER_SECRET", "flicker-link-pro-secret-key-change-me")
-BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
+import httpx
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+import jwt
+from jwt import PyJWKClient
+from jwt.exceptions import PyJWTError
 
-app = FastAPI(title="Flicker Link Pro Cloud Relay")
+BASE_URL = os.getenv("BASE_URL", "https://flicker-link-pro.onrender.com").rstrip("/")
+RESOURCE = BASE_URL + "/mcp"
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+SECRET = os.getenv("FLICKER_SECRET", "")
+SCOPES = "laptop:control"
+CATALOG = json.loads((pathlib.Path(__file__).parent / "tool_catalog.json").read_text(encoding="utf-8"))
+ACTIVE_SOCKETS = {}
+PENDING_CALLS = {}
+REDEEMED_CODES = set()
+# Authorization codes are invalidated on every process restart.
+PROCESS_CODE_KEY = secrets.token_urlsafe(48)
+app = FastAPI(title="Flicker Link Pro Cloud Relay", version="2.2.0")
 
-# In-memory stores
-DEVICES: Dict[str, dict] = {}             # device_token -> {"user_id": ..., "name": ...}
-ACTIVE_SOCKETS: Dict[str, WebSocket] = {} # user_id -> WebSocket
-PENDING_AUTH_CODES: Dict[str, str] = {}   # auth_code -> user_id
-PENDING_CALLS: Dict[str, asyncio.Future] = {}
+def server_secret():
+    if not SECRET or SECRET == "flicker-link-pro-secret-key-change-me" or len(SECRET) < 24:
+        raise HTTPException(503, "FLICKER_SECRET must be configured securely in Render")
+    return SECRET
 
-def create_user_token(user_id: str) -> str:
-    return jwt.encode({"sub": user_id}, APP_SECRET, algorithm="HS256")
+def sign(kind, sub, aud, ttl, **extra):
+    now = int(time.time())
+    claims = {"iss": BASE_URL, "aud": aud, "sub": sub, "kind": kind,
+              "iat": now, "exp": now + ttl, "jti": secrets.token_urlsafe(16)}
+    claims.update(extra)
+    return jwt.encode(claims, PROCESS_CODE_KEY if kind == "auth_code" else server_secret(), algorithm="HS256")
 
-def decode_user_token(token: str) -> str:
-    payload = jwt.decode(token, APP_SECRET, algorithms=["HS256"])
-    return payload["sub"]
+def verify(token, kind, aud):
+    try:
+        claims = jwt.decode(token, PROCESS_CODE_KEY if kind == "auth_code" else server_secret(), algorithms=["HS256"],
+                            issuer=BASE_URL, audience=aud)
+        if claims.get("kind") != kind:
+            raise ValueError("Wrong token type")
+        return claims
+    except (PyJWTError, ValueError, TypeError):
+        raise HTTPException(401, "Invalid or expired credential")
 
-@app.get("/", response_class=HTMLResponse)
-async def home():
-    return f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Flicker Link Pro</title>
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <style>
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #0f172a; color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }}
-        .card {{ background: #1e293b; padding: 32px; border-radius: 12px; max-width: 440px; width: 100%; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }}
-        h2 {{ margin-top: 0; color: #38bdf8; font-size: 24px; }}
-        p {{ color: #94a3b8; line-height: 1.5; }}
-        input, button {{ width: 100%; padding: 12px; margin: 8px 0; border-radius: 6px; box-sizing: border-box; font-size: 15px; }}
-        input {{ background: #334155; border: 1px solid #475569; color: white; }}
-        button {{ background: #0284c7; border: none; color: white; font-weight: 600; cursor: pointer; }}
-        button:hover {{ background: #0369a1; }}
-      </style>
-    </head>
-    <body>
-      <div class="card">
-        <h2>Flicker Link Pro</h2>
-        <p>Sign in to pair your computer and connect ChatGPT remote control:</p>
-        <form action="/login" method="post">
-          <input type="email" name="email" placeholder="name@example.com" required />
-          <button type="submit">Sign In / Register</button>
-        </form>
-      </div>
-    </body>
-    </html>
-    """
+def safe_next(value):
+    return value if value.startswith("/") and not value.startswith("//") and "\\" not in value and len(value) <= 5000 else "/devices"
 
-@app.post("/login", response_class=HTMLResponse)
-async def login(email: str = Form(...)):
-    user_id = email.strip().lower()
-    device_token = f"flk_{uuid.uuid4().hex[:16]}"
-    DEVICES[device_token] = {"user_id": user_id, "name": "Primary Computer"}
-    ws_url = BASE_URL.replace("https://", "wss://").replace("http://", "ws://")
-    
-    return f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Flicker Link Pro - Connected</title>
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <style>
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #0f172a; color: #f8fafc; padding: 40px 20px; }}
-        .box {{ max-width: 600px; margin: 0 auto; background: #1e293b; padding: 32px; border-radius: 12px; }}
-        h2 {{ color: #38bdf8; }}
-        code {{ background: #0f172a; color: #38bdf8; padding: 12px; display: block; border-radius: 6px; word-break: break-all; margin: 10px 0; font-family: monospace; font-size: 14px; border: 1px solid #334155; }}
-        .badge {{ background: #059669; color: white; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; display: inline-block; }}
-        a {{ color: #38bdf8; text-decoration: none; }}
-      </style>
-    </head>
-    <body>
-      <div class="box">
-        <span class="badge">Account Active</span>
-        <h2>Welcome, {user_id}</h2>
-        <p><strong>Step 1: Start the Desktop Agent on your Laptop</strong></p>
-        <p style="color:#94a3b8;">Run this command in your desktop agent folder:</p>
-        <code>python flicker_relay_agent.py --server {ws_url} --token {device_token}</code>
-        <p><strong>Step 2: Connect ChatGPT</strong></p>
-        <p style="color:#94a3b8;">In ChatGPT Settings &gt; Apps / Connectors, add your MCP endpoint:</p>
-        <code>{BASE_URL}/mcp</code>
-        <p style="margin-top:24px;"><a href="/">&larr; Log out / New Device</a></p>
-      </div>
-    </body>
-    </html>
-    """
+def session(request):
+    raw = request.cookies.get("flp_session", "")
+    if not raw:
+        return None
+    try:
+        return verify(raw, "session", BASE_URL + "/session")
+    except HTTPException:
+        return None
+
+def digest(value):
+    return base64.urlsafe_b64encode(hashlib.sha256(value.encode()).digest()).rstrip(b"=").decode()
+
+def check_origin(request):
+    if request.headers.get("origin", "") != BASE_URL:
+        raise HTTPException(403, "Invalid request origin")
+
+def validate_redirect(uri):
+    try:
+        parsed = urlsplit(uri)
+        return bool(
+            (parsed.scheme == "https" or
+             (parsed.scheme == "http" and parsed.hostname in ("localhost", "127.0.0.1")))
+            and parsed.netloc and not parsed.username and not parsed.password
+            and not parsed.fragment and len(uri) < 700
+        )
+    except ValueError:
+        return False
+
+def oauth_client(client_id):
+    client = verify(client_id, "client", BASE_URL + "/clients")
+    if not client.get("redirect_uris"):
+        raise HTTPException(400, "Invalid client")
+    return client
+
+def auth_request(params):
+    client_id = params.get("client_id", "")
+    client = oauth_client(client_id)
+    redirect_uri = params.get("redirect_uri", "")
+    if redirect_uri not in client["redirect_uris"]:
+        raise HTTPException(400, "Unregistered redirect URI")
+    if params.get("response_type") != "code":
+        raise HTTPException(400, "Only authorization code flow is supported")
+    if params.get("code_challenge_method") != "S256":
+        raise HTTPException(400, "PKCE S256 is required")
+    challenge = params.get("code_challenge", "")
+    if len(challenge) != 43 or any(c not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_" for c in challenge):
+        raise HTTPException(400, "Invalid PKCE challenge")
+    if params.get("resource") != RESOURCE:
+        raise HTTPException(400, "Invalid MCP resource")
+    if set(params.get("scope", SCOPES).split()) != {SCOPES}:
+        raise HTTPException(400, "Unsupported scope")
+    if not params.get("state") or len(params["state"]) > 1024:
+        raise HTTPException(400, "Missing OAuth state")
+    return {"client_id": client_id, "redirect_uri": redirect_uri,
+            "challenge": challenge, "resource": RESOURCE, "scope": SCOPES,
+            "state": params["state"], "client_name": client.get("client_name", "MCP client")}
+
+def unauthorized():
+    return JSONResponse({"error": "unauthorized"}, 401, headers={
+        "WWW-Authenticate": 'Bearer resource_metadata="' + BASE_URL + '/.well-known/oauth-protected-resource", scope="' + SCOPES + '"'})
+
+@app.get("/.well-known/oauth-protected-resource")
+@app.get("/.well-known/oauth-protected-resource/mcp")
+async def resource_metadata():
+    return {"resource": RESOURCE, "authorization_servers": [BASE_URL],
+            "scopes_supported": [SCOPES], "bearer_methods_supported": ["header"]}
+
+@app.get("/.well-known/oauth-authorization-server")
+async def authorization_metadata():
+    return {"issuer": BASE_URL, "authorization_endpoint": BASE_URL + "/oauth/authorize",
+            "token_endpoint": BASE_URL + "/oauth/token",
+            "registration_endpoint": BASE_URL + "/oauth/register",
+            "response_types_supported": ["code"],
+            "grant_types_supported": ["authorization_code"],
+            "token_endpoint_auth_methods_supported": ["none"],
+            "code_challenge_methods_supported": ["S256"],
+            "scopes_supported": [SCOPES],
+            "service_documentation": BASE_URL + "/"}
+
+@app.post("/oauth/register")
+async def register(request: Request):
+    data = await request.json()
+    redirect_uris = data.get("redirect_uris")
+    if (not isinstance(redirect_uris, list) or not 1 <= len(redirect_uris) <= 5 or
+        not all(isinstance(u, str) and validate_redirect(u) for u in redirect_uris) or
+        len(set(redirect_uris)) != len(redirect_uris) or
+        data.get("token_endpoint_auth_method", "none") != "none"):
+        raise HTTPException(400, "Invalid public-client registration")
+    name = str(data.get("client_name", "MCP client"))[:100]
+    client_id = sign("client", "registered-client", BASE_URL + "/clients",
+                     365 * 86400, redirect_uris=redirect_uris, client_name=name)
+    return JSONResponse({"client_id": client_id, "client_name": name,
+                         "redirect_uris": redirect_uris,
+                         "token_endpoint_auth_method": "none",
+                         "grant_types": ["authorization_code"],
+                         "response_types": ["code"]}, status_code=201)
+
+@app.get("/auth/google/start")
+async def google_start(next: str = "/devices"):
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+        raise HTTPException(503, "Google OAuth credentials are not configured")
+    state = secrets.token_urlsafe(24)
+    nonce = secrets.token_urlsafe(24)
+    verifier = secrets.token_urlsafe(48)
+    flow = sign("google_flow", "login", BASE_URL + "/google", 600,
+                state=state, nonce=nonce, verifier=verifier, next=safe_next(next))
+    params = {"client_id": GOOGLE_CLIENT_ID, "redirect_uri": BASE_URL + "/auth/google/callback",
+              "response_type": "code", "scope": "openid email profile",
+              "state": state, "nonce": nonce, "code_challenge": digest(verifier),
+              "code_challenge_method": "S256"}
+    reply = RedirectResponse("https://accounts.google.com/o/oauth2/v2/auth?" + urlencode(params))
+    reply.set_cookie("flp_google_flow", flow, httponly=True, secure=True, samesite="lax", max_age=600, path="/")
+    return reply
+
+@app.get("/auth/google/callback")
+async def google_callback(request: Request, state: str = "", code: str = ""):
+    flow = verify(request.cookies.get("flp_google_flow", ""), "google_flow", BASE_URL + "/google")
+    if not code or not secrets.compare_digest(state, flow["state"]):
+        raise HTTPException(400, "Google sign-in state mismatch")
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.post("https://oauth2.googleapis.com/token", data={
+            "client_id": GOOGLE_CLIENT_ID, "client_secret": GOOGLE_CLIENT_SECRET,
+            "code": code, "code_verifier": flow["verifier"],
+            "grant_type": "authorization_code",
+            "redirect_uri": BASE_URL + "/auth/google/callback"})
+        if resp.status_code != 200:
+            raise HTTPException(400, "Google token exchange failed")
+        tokens = resp.json()
+    try:
+        def check_google_signature():
+            # Fetches Google's public JWKS and validates issuer, audience, expiry and signature.
+            key = PyJWKClient("https://www.googleapis.com/oauth2/v3/certs").get_signing_key_from_jwt(tokens["id_token"]).key
+            return jwt.decode(
+                tokens["id_token"], key, algorithms=["RS256"],
+                audience=GOOGLE_CLIENT_ID,
+                issuer=["https://accounts.google.com", "accounts.google.com"],
+                options={"require": ["iss", "sub", "aud", "exp", "iat"]})
+        identity = await asyncio.to_thread(check_google_signature)
+        if not identity.get("email_verified") or identity.get("nonce") != flow["nonce"]:
+            raise ValueError("Invalid Google account proof")
+    except Exception:
+        raise HTTPException(401, "Unable to verify Google identity")
+    user = sign("session", identity["sub"], BASE_URL + "/session", 12 * 3600,
+                email=identity.get("email", ""), csrf=secrets.token_urlsafe(24))
+    response = RedirectResponse(safe_next(flow["next"]))
+    response.set_cookie("flp_session", user, secure=True, httponly=True,
+                        samesite="lax", max_age=12 * 3600, path="/")
+    response.delete_cookie("flp_google_flow", path="/")
+    return response
+
+@app.get("/")
+async def home(request: Request):
+    user = session(request)
+    if user:
+        return RedirectResponse("/devices")
+    return HTMLResponse('<html><body style="font:18px sans-serif;max-width:580px;margin:70px auto"><h2>Flicker Link Pro</h2><p>Sign in with Google to pair your computer securely.</p><a href="/auth/google/start">Continue with Google</a></body></html>')
+
+@app.get("/devices")
+async def devices(request: Request):
+    user = session(request)
+    if not user:
+        return RedirectResponse("/auth/google/start?next=%2Fdevices")
+    email = html.escape(user.get("email", ""), quote=True)
+    csrf = html.escape(user["csrf"], quote=True)
+    return HTMLResponse('<html><body style="font:18px sans-serif;max-width:700px;margin:60px auto">'
+        '<h2>Flicker Link Pro — Pair a computer</h2><p>Signed in as ' + email + '</p>'
+        '<p>Generate a time-limited pairing credential. Treat it as a password. Do not share it.</p>'
+        '<form action="/devices/pair" method="post"><input type="hidden" name="csrf" value="' + csrf + '">'
+        '<button type="submit">Generate device pairing credential</button></form>'
+        '<p><a href="/auth/logout">Sign out</a></p></body></html>')
+
+@app.post("/devices/pair")
+async def pair(request: Request):
+    check_origin(request)
+    user = session(request)
+    if not user:
+        raise HTTPException(401, "Sign in first")
+    form = await request.form()
+    if not secrets.compare_digest(str(form.get("csrf", "")), user["csrf"]):
+        raise HTTPException(403, "Invalid CSRF token")
+    token = sign("device", user["sub"], BASE_URL + "/devices", 30 * 86400)
+    command = "python flicker_relay_agent.py --server " + BASE_URL + " --token " + token
+    return HTMLResponse('<html><body style="font:16px sans-serif;max-width:900px;margin:50px auto">'
+        '<h2>Your device pairing command</h2><p>Run this from the desktop-agent folder. '
+        'The pairing credential expires after 30 days and must be kept private.</p>'
+        '<pre style="white-space:pre-wrap;overflow-wrap:anywhere;background:#eee;padding:15px">' +
+        html.escape(command) + '</pre><p><a href="/devices">Back to devices</a></p></body></html>')
+
+@app.get("/auth/logout")
+async def logout():
+    r = RedirectResponse("/")
+    r.delete_cookie("flp_session", path="/")
+    return r
 
 @app.get("/oauth/authorize")
-async def oauth_authorize(redirect_uri: str, state: str, client_id: str = ""):
-    code = f"code_{uuid.uuid4().hex[:16]}"
-    return HTMLResponse(f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Authorize ChatGPT</title>
-      <style>
-        body {{ font-family: sans-serif; background: #0f172a; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }}
-        .card {{ background: #1e293b; padding: 32px; border-radius: 10px; max-width: 400px; text-align: center; }}
-        button, input {{ width: 100%; padding: 10px; margin: 8px 0; border-radius: 6px; box-sizing: border-box; }}
-        input {{ background: #334155; border: 1px solid #475569; color: white; }}
-        button {{ background: #10a37f; color: white; border: none; font-weight: bold; cursor: pointer; }}
-      </style>
-    </head>
-    <body>
-      <div class="card">
-        <h3>Connect Flicker Link Pro to ChatGPT</h3>
-        <p style="color:#94a3b8;font-size:14px;">Enter your registered account email to authorize remote laptop commands:</p>
-        <form action="/oauth/approve" method="post">
-          <input type="hidden" name="redirect_uri" value="{redirect_uri}" />
-          <input type="hidden" name="state" value="{state}" />
-          <input type="hidden" name="code" value="{code}" />
-          <input type="email" name="email" placeholder="Your account email" required />
-          <button type="submit">Authorize Connection</button>
-        </form>
-      </div>
-    </body>
-    </html>
-    """)
+async def authorize(request: Request):
+    data = auth_request(dict(request.query_params))
+    user = session(request)
+    if not user:
+        target = str(request.url.path) + "?" + str(request.url.query)
+        return RedirectResponse("/auth/google/start?" + urlencode({"next": target}))
+    consent = sign("consent", user["sub"], BASE_URL + "/consent", 600,
+                   client_hash=digest(data["client_id"]), redirect_uri=data["redirect_uri"],
+                   challenge=data["challenge"], resource=data["resource"],
+                   state=data["state"], scope=data["scope"])
+    client_name = html.escape(data["client_name"], quote=True)
+    target_host = html.escape(urlsplit(data["redirect_uri"]).netloc, quote=True)
+    return HTMLResponse('<html><body style="font:17px sans-serif;max-width:650px;margin:60px auto">'
+        '<h2>Authorize Flicker Link Pro</h2><p>' + client_name + ' requests remote computer control.'
+        '</p><p>Redirect destination: <strong>' + target_host + '</strong></p>'
+        '<p>Only approve if you initiated this connection in ChatGPT.</p>'
+        '<form method="post" action="/oauth/approve"><input type="hidden" name="consent" value="' +
+        html.escape(consent, quote=True) + '"><input type="hidden" name="csrf" value="' +
+        html.escape(user["csrf"], quote=True) + '">'
+        '<button type="submit" name="decision" value="allow">Allow laptop control</button> '
+        '<button type="submit" name="decision" value="deny">Deny</button></form></body></html>')
 
 @app.post("/oauth/approve")
-async def oauth_approve(redirect_uri: str = Form(...), state: str = Form(...), code: str = Form(...), email: str = Form(...)):
-    user_id = email.strip().lower()
-    PENDING_AUTH_CODES[code] = user_id
-    return RedirectResponse(f"{redirect_uri}?code={code}&state={state}", status_code=302)
+async def approve(request: Request):
+    check_origin(request)
+    user = session(request)
+    if not user:
+        raise HTTPException(401, "Sign in first")
+    form = await request.form()
+    if not secrets.compare_digest(str(form.get("csrf", "")), user["csrf"]):
+        raise HTTPException(403, "Invalid CSRF token")
+    approved = verify(str(form.get("consent", "")), "consent", BASE_URL + "/consent")
+    if approved["sub"] != user["sub"]:
+        raise HTTPException(403, "Account does not match approval")
+    redirect_uri = approved["redirect_uri"]
+    if form.get("decision") != "allow":
+        return RedirectResponse(redirect_uri + "?" + urlencode({"error": "access_denied", "state": approved["state"]}))
+    code = sign("auth_code", user["sub"], BASE_URL + "/authcode", 90,
+                client_hash=approved["client_hash"], redirect_uri=redirect_uri,
+                challenge=approved["challenge"], resource=RESOURCE, scope=SCOPES)
+    return RedirectResponse(redirect_uri + "?" + urlencode({"code": code, "state": approved["state"]}))
 
 @app.post("/oauth/token")
-async def oauth_token(request: Request):
+async def token_endpoint(request: Request):
     form = await request.form()
-    code = form.get("code")
-    if not code or code not in PENDING_AUTH_CODES:
-        raise HTTPException(status_code=400, detail="Invalid or expired authorization code")
-    user_id = PENDING_AUTH_CODES.pop(code)
-    token = create_user_token(user_id)
-    return JSONResponse({
-        "access_token": token,
-        "token_type": "bearer",
-        "expires_in": 2592000
-    })
+    grant = str(form.get("grant_type", ""))
+    client_id = str(form.get("client_id", ""))
+    oauth_client(client_id)
+    if form.get("resource") != RESOURCE:
+        raise HTTPException(400, "Invalid resource indicator")
+    if grant == "authorization_code":
+        code = verify(str(form.get("code", "")), "auth_code", BASE_URL + "/authcode")
+        verifier = str(form.get("code_verifier", ""))
+        if (len(verifier) < 43 or len(verifier) > 128 or
+            not secrets.compare_digest(digest(verifier), code["challenge"]) or
+            code["client_hash"] != digest(client_id) or
+            code["redirect_uri"] != str(form.get("redirect_uri", "")) or
+            code["resource"] != RESOURCE):
+            raise HTTPException(400, "Invalid authorization code or PKCE proof")
+        if code["jti"] in REDEEMED_CODES:
+            raise HTTPException(400, "Authorization code has already been used")
+        REDEEMED_CODES.add(code["jti"])
+        if len(REDEEMED_CODES) > 10000:
+            REDEEMED_CODES.clear()
+        sub = code["sub"]
+    else:
+        raise HTTPException(400, "Unsupported grant type")
+    access = sign("access", sub, RESOURCE, 3600, scope=SCOPES)
+    return {"access_token": access,
+            "token_type": "Bearer", "expires_in": 3600, "scope": SCOPES}
 
 @app.websocket("/ws/device")
-async def device_websocket(websocket: WebSocket, token: str = Query(...)):
-    if token not in DEVICES:
+async def device_websocket(websocket: WebSocket):
+    header = websocket.headers.get("authorization", "")
+    if not header.startswith("Bearer "):
         await websocket.close(code=1008)
         return
-    user_id = DEVICES[token]["user_id"]
+    try:
+        device = verify(header[7:], "device", BASE_URL + "/devices")
+    except HTTPException:
+        await websocket.close(code=1008)
+        return
+    sub = device["sub"]
+    if sub in ACTIVE_SOCKETS:
+        try:
+            await ACTIVE_SOCKETS[sub].close(code=1000)
+        except Exception:
+            pass
     await websocket.accept()
-    ACTIVE_SOCKETS[user_id] = websocket
+    ACTIVE_SOCKETS[sub] = websocket
     try:
         while True:
-            msg = await websocket.receive_text()
-            data = json.loads(msg)
-            req_id = data.get("id")
-            if req_id and req_id in PENDING_CALLS:
-                PENDING_CALLS[req_id].set_result(data.get("result"))
-    except WebSocketDisconnect:
-        ACTIVE_SOCKETS.pop(user_id, None)
+            message = json.loads(await websocket.receive_text())
+            call_id = message.get("id")
+            pending = PENDING_CALLS.get(call_id)
+            if pending and pending[0] == sub and not pending[1].done():
+                pending[1].set_result(message.get("result"))
+    except (WebSocketDisconnect, ValueError, json.JSONDecodeError):
+        pass
+    finally:
+        if ACTIVE_SOCKETS.get(sub) is websocket:
+            ACTIVE_SOCKETS.pop(sub, None)
 
 @app.post("/mcp")
-async def mcp_endpoint(request: Request):
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    token = auth_header[7:].strip()
+async def mcp(request: Request):
+    authorization = request.headers.get("authorization", "")
+    if not authorization.startswith("Bearer "):
+        return unauthorized()
     try:
-        user_id = decode_user_token(token)
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid Token")
-
-    payload = await request.json()
-    method = payload.get("method")
-    req_id = payload.get("id")
-
+        account = verify(authorization[7:], "access", RESOURCE)
+        if SCOPES not in account.get("scope", "").split():
+            return unauthorized()
+    except HTTPException:
+        return unauthorized()
+    body = await request.body()
+    if len(body) > 1024 * 1024:
+        raise HTTPException(413, "MCP request too large")
+    try:
+        data = json.loads(body)
+        if not isinstance(data, dict) or data.get("jsonrpc") != "2.0":
+            raise ValueError()
+    except (ValueError, TypeError):
+        raise HTTPException(400, "Invalid JSON-RPC request")
+    method = data.get("method")
+    req_id = data.get("id")
+    if method == "notifications/initialized":
+        return Response(status_code=202)
     if method == "initialize":
-        return {
-            "jsonrpc": "2.0",
-            "id": req_id,
-            "result": {
-                "protocolVersion": "2025-03-26",
-                "capabilities": {"tools": {"listChanged": False}},
-                "serverInfo": {"name": "flicker-link-pro", "version": "2.0.0"}
-            }
-        }
+        versions = ("2025-11-25", "2025-06-18", "2025-03-26")
+        desired = data.get("params", {}).get("protocolVersion")
+        version = desired if desired in versions else "2025-03-26"
+        return {"jsonrpc": "2.0", "id": req_id, "result": {
+            "protocolVersion": version, "capabilities": {"tools": {"listChanged": False}},
+            "serverInfo": {"name": "flicker-link-pro", "version": "2.2.0"}}}
     if method == "ping":
         return {"jsonrpc": "2.0", "id": req_id, "result": {}}
-
-    ws = ACTIVE_SOCKETS.get(user_id)
-    if not ws:
-        if method == "tools/list":
-            return {"jsonrpc": "2.0", "id": req_id, "result": {"tools": []}}
-        return {
-            "jsonrpc": "2.0",
-            "id": req_id,
-            "error": {"code": -32000, "message": "Your computer is currently offline. Start flicker_relay_agent.py on your machine."}
-        }
-
-    fut = asyncio.get_event_loop().create_future()
-    PENDING_CALLS[req_id] = fut
-    await ws.send_text(json.dumps(payload))
+    ws = ACTIVE_SOCKETS.get(account["sub"])
+    if method == "tools/list" and ws is None:
+        return {"jsonrpc": "2.0", "id": req_id, "result": {"tools": CATALOG}}
+    if method not in ("tools/list", "tools/call"):
+        return {"jsonrpc": "2.0", "id": req_id,
+                "error": {"code": -32601, "message": "Method not found"}}
+    if ws is None:
+        return {"jsonrpc": "2.0", "id": req_id,
+                "error": {"code": -32000, "message": "Desktop agent offline. Sign in and pair it at /devices."}}
+    call_id = uuid.uuid4().hex
+    if len(PENDING_CALLS) >= 100:
+        return {"jsonrpc": "2.0", "id": req_id,
+                "error": {"code": -32000, "message": "Relay is busy"}}
+    future = asyncio.get_running_loop().create_future()
+    PENDING_CALLS[call_id] = (account["sub"], future)
     try:
-        result = await asyncio.wait_for(fut, timeout=65.0)
+        forwarded = dict(data)
+        forwarded["id"] = call_id
+        await ws.send_text(json.dumps(forwarded))
+        result = await asyncio.wait_for(future, timeout=45.0)
         return {"jsonrpc": "2.0", "id": req_id, "result": result}
-    except asyncio.TimeoutError:
-        return {"jsonrpc": "2.0", "id": req_id, "error": {"code": -32000, "message": "Command timed out on laptop."}}
+    except (asyncio.TimeoutError, WebSocketDisconnect, RuntimeError):
+        return {"jsonrpc": "2.0", "id": req_id,
+                "error": {"code": -32000, "message": "Desktop agent did not respond"}}
     finally:
-        PENDING_CALLS.pop(req_id, None)
+        PENDING_CALLS.pop(call_id, None)
