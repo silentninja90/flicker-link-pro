@@ -12,6 +12,7 @@ import logging
 import os
 from functools import lru_cache
 import pathlib
+import re
 import secrets
 import time
 import uuid
@@ -203,6 +204,33 @@ async def register(request: Request):
                          "grant_types": ["authorization_code"],
                          "response_types": ["code"]}, status_code=201)
 
+class GoogleCallbackAccessLogFilter(logging.Filter):
+    """Remove one-time OAuth authorization codes from Uvicorn access logs."""
+    def filter(self, record):
+        if isinstance(record.args, tuple):
+            record.args = tuple(
+                re.sub(r"(/auth/google/callback)\?[^\s\"']+", r"\1?[redacted]", value)
+                if isinstance(value, str) else value
+                for value in record.args
+            )
+        return True
+
+
+logging.getLogger("uvicorn.access").addFilter(GoogleCallbackAccessLogFilter())
+
+
+def google_token_error_category(response) -> str:
+    """Return only documented coarse Google error codes; never error_description."""
+    try:
+        result = response.json()
+    except (ValueError, TypeError):
+        return "unknown"
+    code = result.get("error") if isinstance(result, dict) else None
+    safe_codes = {"invalid_client", "invalid_grant", "invalid_request",
+                  "unauthorized_client", "access_denied"}
+    return code if isinstance(code, str) and code in safe_codes else "unknown"
+
+
 @app.get("/auth/google/start")
 async def google_start(next: str = "/devices"):
     if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
@@ -232,6 +260,9 @@ async def google_callback(request: Request, state: str = "", code: str = ""):
             "grant_type": "authorization_code",
             "redirect_uri": BASE_URL + "/auth/google/callback"})
         if resp.status_code != 200:
+            logging.getLogger("flicker-link-pro").warning(
+                "Google token exchange rejected: HTTP %s, category=%s",
+                resp.status_code, google_token_error_category(resp))
             raise HTTPException(400, "Google token exchange failed")
         tokens = resp.json()
     try:
