@@ -263,7 +263,10 @@ async def healthz():
         device_registry().list_owned("__flicker_health_check__")
     except Exception as exc:
         # Log the exception CLASS only. PostgreSQL exceptions can embed credentials.
-        logging.getLogger("flicker-link-pro").warning("Database health check failed: %s", type(exc).__name__)
+        kind = type(exc).__name__
+        if isinstance(exc, HTTPException):
+            kind = "postgres_storage_unavailable" if os.getenv("DATABASE_URL") else "database_url_missing"
+        logging.getLogger("flicker-link-pro").warning("Database health check failed: %s", kind)
         raise HTTPException(503, "Database unavailable") from None
     return {"status": "ok", "database": "ready"}
 
