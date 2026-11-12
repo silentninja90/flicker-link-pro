@@ -22,7 +22,7 @@
 - Local logout and uninstall must erase the pairing. Deleting a shortcut alone cannot erase Windows credentials.
 - Device credentials are high-entropy, opaque, revocable, and remain paired until user logout/revocation; there is no 30-day expiry. The server stores only a keyed digest, and the Windows app stores its key in Credential Manager.
 - This long-lived key avoids repeated login but would be reusable if stolen until revoked; users must be able to revoke it through the authenticated dashboard.
-- FLICKER_DB_PATH must point to SQLite on an actual persistent disk. A Render Free web service has no persistent disk: do not deploy this backend there without upgrading or replacing the storage backend.
+- Selected path: Render Free + Neon PostgreSQL using DATABASE_URL; Neon connection and end-to-end live tests still need to be completed. SQLite remains an optional fallback but requires a persistent disk and must never use Render Free's ephemeral filesystem.
 
 ## Review Focus
 - An attacker reuses an authorization code after a Render restart.

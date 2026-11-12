@@ -1,5 +1,7 @@
 # Flicker Link Pro — durable device pairing deployment
 
+**Selected path: Render Free + Neon PostgreSQL.** See `NEON_SETUP.md` for the current setup steps. This document preserves the alternative SQLite-on-paid-Render approach.
+
 The development relay stores revocable Windows device credentials in SQLite.
 **Do not deploy this SQLite version on a Render Free web service.**
 Render Free has an ephemeral filesystem, which would discard device records
@@ -23,13 +25,14 @@ after restarts and spin-downs. The server refuses pairing if the disk is missing
 
 Rotating FLICKER_SECRET invalidates existing device credentials.
 
-## Alternative: external durable database and free Render web service
+## Selected path: Neon PostgreSQL and Render Free
 
-Move the device registry to a managed database such as Postgres. This branch
-currently implements SQLite only. Do not set FLICKER_DB_PATH to a Postgres URL.
-A Free Render Postgres instance expires after 30 days, so it is not durable
-enough for the product requirement. Implement and test a Postgres adapter
-before deploying if an external provider is chosen.
+The branch includes a PostgreSQL adapter in postgres_registry.py, selected
+when DATABASE_URL is configured. See NEON_SETUP.md for the selected setup.
+Do not set FLICKER_DB_PATH to a PostgreSQL URL. A Free Render Postgres
+instance expires after 30 days and is not appropriate for durable pairings.
+The adapter passed local SQL-compatible tests but still needs validation
+against a real Neon server before production deployment.
 
 ## Logout, uninstall and privacy
 

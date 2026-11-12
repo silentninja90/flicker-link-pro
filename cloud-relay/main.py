@@ -9,6 +9,7 @@ import hashlib
 import html
 import json
 import os
+from functools import lru_cache
 import pathlib
 import secrets
 import time
@@ -38,7 +39,24 @@ REDEEMED_CODES = set()
 PROCESS_CODE_KEY = secrets.token_urlsafe(48)
 app = FastAPI(title="Flicker Link Pro Cloud Relay", version="2.2.0")
 
+@lru_cache(maxsize=4)
+def _postgres_registry_cached(database_url: str, secret: str):
+    from postgres_registry import PostgresDeviceRegistry
+    return PostgresDeviceRegistry(database_url, secret)
+
+
 def device_registry():
+    database_url = os.environ.get("DATABASE_URL", "").strip()
+    if database_url:
+        try:
+            return _postgres_registry_cached(database_url, server_secret())
+        except (OSError, ValueError) as exc:
+            raise HTTPException(503, "Durable PostgreSQL storage is unavailable") from exc
+        except Exception as exc:
+            # psycopg2 errors may include the DSN: never expose their details.
+            if isinstance(exc, HTTPException):
+                raise
+            raise HTTPException(503, "Durable PostgreSQL storage is unavailable") from exc
     db_path = os.environ.get("FLICKER_DB_PATH", "").strip()
     if not db_path or not pathlib.Path(db_path).is_absolute():
         raise HTTPException(503, "A persistent FLICKER_DB_PATH is required for device pairing")
