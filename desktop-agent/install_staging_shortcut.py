@@ -24,11 +24,13 @@ if not exist "%~dp0.venv\\Scripts\\python.exe" (
   exit /b 1
 )
 "%~dp0.venv\\Scripts\\python.exe" "%~dp0flicker_relay_agent.py" --profile staging
-if errorlevel 1 (
-  echo.
-  echo Staging connection failed.
-  pause
-)
+set "FLP_EXIT=%ERRORLEVEL%"
+echo.
+if not "%FLP_EXIT%"=="0" echo [ERROR] Flicker Link Pro 2 ended with a problem.
+echo Flicker Link Pro 2 has stopped. Review any messages above.
+echo Press any key to close this window.
+pause >nul
+exit /b %FLP_EXIT%
 """
 
 SIGNOUT = """@echo off

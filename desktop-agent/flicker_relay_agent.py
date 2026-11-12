@@ -10,6 +10,8 @@ import getpass
 import inspect
 import json
 import os
+import re
+import sys
 import webbrowser
 import websockets
 from urllib.request import Request, urlopen
@@ -51,20 +53,61 @@ def _delete_for(profile: str):
     else:
         delete_credential()
 
+def read_masked_pairing(prompt: str, read_key=None, output=None) -> str:
+    """Show an asterisk per console character; support paste and Backspace."""
+    if read_key is None:
+        if os.name != "nt":
+            return getpass.getpass(prompt).strip()
+        import msvcrt
+        read_key = msvcrt.getwch
+    output = output or sys.stdout
+    output.write(prompt)
+    output.flush()
+    chars = []
+    while True:
+        key = read_key()
+        if key in ("\r", "\n"):
+            output.write("\n")
+            output.flush()
+            return "".join(chars).strip()
+        if key in ("\b", "\x7f"):
+            if chars:
+                chars.pop()
+                output.write("\b \b")
+        elif key in ("\x00", "\xe0"):
+            read_key()  # Ignore arrow/function-key scan code.
+        elif key == "\x03":
+            output.write("\n")
+            output.flush()
+            raise KeyboardInterrupt
+        elif key.isprintable() and len(chars) < 1024:
+            chars.append(key)
+            output.write("*")
+        output.flush()
+
+
 def prompt_pairing(server: str):
-    print("\nFlicker Link Pro - first-time setup")
+    print("\nFlicker Link Pro 2 - computer pairing")
     print("Opening the secure device-pairing page in your browser.")
     print("1. Sign in with Google.")
-    print("2. Select Generate device pairing credential.")
-    print("3. Copy the value after --token (not the entire command).")
+    print("2. Choose Pair a new computer.")
+    print("3. Copy ONLY the token beginning with flk2_ (after --token).")
+    print("4. Paste it below. * appears for each character; Backspace erases.")
     try:
         webbrowser.open(server.rstrip("/") + "/devices")
     except Exception:
         pass
-    token = ""
-    while not token:
-        token = getpass.getpass("Paste your pairing credential (input hidden): ").strip()
-    return server, token
+    while True:
+        token = read_masked_pairing("Pairing token (* = typed/pasted character): ")
+        if not token:
+            print("[INPUT EMPTY] Paste the token, then press Enter.")
+            continue
+        if server.rstrip("/") == STAGING_SERVER and not re.fullmatch(
+            r"flk2_[A-Za-z0-9_-]{16,512}", token
+        ):
+            print("[INVALID FORMAT] Paste only the flk2_ token, not the full command.")
+            continue
+        return server, token
 
 def resolve_pairing(server: str | None, token: str | None,
                     profile: str | None = None):
@@ -127,8 +170,8 @@ async def run_relay(server_url: str, token: str):
             status = getattr(getattr(exc, "response", None), "status_code", None)
             if status in (401, 403):
                 print("[PAIRING INVALID] Device authorization expired or revoked.")
-                print("Sign in to the relay, generate a new pairing, then launch with --token.")
-                return
+                print("Sign in to staging and generate a fresh device token to retry.")
+                return False
             print("[RETRY] Relay unavailable; retrying in 5 seconds.")
             await asyncio.sleep(5)
         except (websockets.exceptions.ConnectionClosed, ConnectionRefusedError, OSError):
@@ -186,11 +229,18 @@ def main():
         if not logout_pairing(profile=args.profile):
             raise SystemExit(1)
         return
-    base, token = resolve_pairing(args.server, args.token, profile=args.profile)
     try:
-        asyncio.run(run_relay(base, token))
+        base, token = resolve_pairing(args.server, args.token, profile=args.profile)
+        while True:
+            result = asyncio.run(run_relay(base, token))
+            if result is not False or _profile_for(args.server, args.profile) != "staging":
+                break
+            print("[RETRY PAIRING] The previous staging token was not accepted.")
+            print("Create a fresh device pairing from the staging dashboard.")
+            base, token = prompt_pairing(STAGING_SERVER)
+            _save_for("staging", base, token)
     except KeyboardInterrupt:
-        print("Flicker Link Pro stopped. Saved pairing retained.")
+        print("\nFlicker Link Pro 2 stopped. Saved pairing retained.")
 
 if __name__ == "__main__":
     main()

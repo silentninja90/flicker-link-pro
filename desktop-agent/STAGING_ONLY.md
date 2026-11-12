@@ -32,8 +32,11 @@ Pairing instructions:
 3. On Paired Computers, select "Pair a new computer" if no credential
    from a previous pairing remains available.
 4. Copy ONLY the token starting with flk2_ shown after "--token".
-5. Paste directly into the hidden-input prompt in the Windows console.
-   Never paste the token into a chat, screenshot, or issue tracker.
+5. Paste directly into the Windows console pairing prompt. Each typed or
+   pasted character appears as an asterisk (*); Backspace removes one.
+   Never paste the actual token into a chat, screenshot, or issue tracker.
+   An invalid token automatically returns to the pairing prompt.
+   The shortcut keeps the Command Prompt window open if the agent exits.
 6. The console should print "[CONNECTED] Saved pairing accepted".
 7. Relaunching should reuse the credential without a new sign-in.
 8. Revoke unused authorizations from the staging web dashboard.
