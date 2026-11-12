@@ -34,7 +34,7 @@ CATALOG = json.loads((pathlib.Path(__file__).parent / "tool_catalog.json").read_
 ACTIVE_SOCKETS = {}
 ACTIVE_DEVICE_IDS = {}
 PENDING_CALLS = {}
-REDEEMED_CODES = set()
+REDEEMED_CODES = {}  # one-time authorization code ID -> JWT expiration timestamp
 # Authorization codes are invalidated on every process restart.
 PROCESS_CODE_KEY = secrets.token_urlsafe(48)
 app = FastAPI(title="Flicker Link Pro Cloud Relay", version="2.2.0")
@@ -395,6 +395,20 @@ async def approve(request: Request):
                 challenge=approved["challenge"], resource=RESOURCE, scope=SCOPES)
     return RedirectResponse(redirect_uri + "?" + urlencode({"code": code, "state": approved["state"]}))
 
+def consume_auth_code(jti: str, expires_at: int) -> None:
+    """Single use, bounded memory. Never clear live redemptions under load."""
+    if jti in REDEEMED_CODES:
+        raise HTTPException(400, "Authorization code has already been used")
+    if len(REDEEMED_CODES) >= 10000:
+        now = int(time.time())
+        for used_id, expiry in list(REDEEMED_CODES.items()):
+            if expiry <= now:
+                del REDEEMED_CODES[used_id]
+        if len(REDEEMED_CODES) >= 10000:
+            raise HTTPException(503, "Authorization server temporarily busy")
+    REDEEMED_CODES[jti] = int(expires_at)
+
+
 @app.post("/oauth/token")
 async def token_endpoint(request: Request):
     form = await request.form()
@@ -412,11 +426,7 @@ async def token_endpoint(request: Request):
             code["redirect_uri"] != str(form.get("redirect_uri", "")) or
             code["resource"] != RESOURCE):
             raise HTTPException(400, "Invalid authorization code or PKCE proof")
-        if code["jti"] in REDEEMED_CODES:
-            raise HTTPException(400, "Authorization code has already been used")
-        REDEEMED_CODES.add(code["jti"])
-        if len(REDEEMED_CODES) > 10000:
-            REDEEMED_CODES.clear()
+        consume_auth_code(code["jti"], code["exp"])
         sub = code["sub"]
     else:
         raise HTTPException(400, "Unsupported grant type")

@@ -2,6 +2,7 @@
 import asyncio
 import os
 import secrets
+import time
 
 os.environ["FLICKER_SECRET"] = "test-only-" + "a" * 48
 os.environ["BASE_URL"] = "https://flicker-link-pro.onrender.com"
@@ -42,7 +43,29 @@ async def run():
             "refresh_token":bogus_refresh, "resource":main.RESOURCE})
         assert exchange.status_code == 400, "Do not accept refresh grant before rotation support"
 
-    print("PASS: No refresh token grant and server-restart code invalidation")
+        saved_codes = main.REDEEMED_CODES.copy()
+        try:
+            main.REDEEMED_CODES.clear()
+            expiry = int(time.time()) + 90
+            main.consume_auth_code("first", expiry)
+            for n in range(9999):
+                main.consume_auth_code(f"fill-{n}", expiry)
+            try:
+                main.consume_auth_code("overflow", expiry)
+                raise AssertionError("Replay cache must fail closed when full")
+            except HTTPException as exc:
+                assert exc.status_code == 503
+            assert "first" in main.REDEEMED_CODES
+            try:
+                main.consume_auth_code("first", expiry)
+                raise AssertionError("Previously used authorization code was reused")
+            except HTTPException as exc:
+                assert exc.status_code == 400
+        finally:
+            main.REDEEMED_CODES.clear()
+            main.REDEEMED_CODES.update(saved_codes)
+
+    print("PASS: no refresh grant, restart invalidation, bounded fail-closed code replay cache")
 
 if __name__ == "__main__":
     asyncio.run(run())

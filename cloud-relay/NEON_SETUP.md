@@ -1,5 +1,17 @@
 # Flicker Link Pro 2 — Render Free + Neon PostgreSQL
 
+## Verified development infrastructure, November 11, 2026
+
+- Neon Free project: Flicker Link Pro 2 (ID spring-dream-96219457)
+- Region: AWS Oregon, matching Render service's region
+- Branch: main (ID br-wild-hall-ar83n5x8)
+- Database: flicker_link_pro, role: flicker_app
+- Existing device_credentials schema and indexes verified via the Neon connection
+- Neon project currently contains no real device pairing records
+- Pooled Neon DATABASE_URL securely configured on the existing Render service.
+- Render automatically redeployed its ORIGINAL commit 4439ecb; the new code is NOT live.
+- Do not expose the Neon password or Google client secret in chat or Git.
+
 This is the selected development architecture. Render hosts the FastAPI relay.
 Neon provides a durable, external PostgreSQL registry for laptop device credentials.
 Google OAuth verifies account ownership. ChatGPT OAuth and Windows agent credentials
