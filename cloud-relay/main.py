@@ -422,6 +422,12 @@ async def authorize(request: Request):
         '<button type="submit" name="decision" value="allow">Allow laptop control</button> '
         '<button type="submit" name="decision" value="deny">Deny</button></form></body></html>')
 
+def oauth_callback(redirect_uri, params):
+    separator = "&" if urlsplit(redirect_uri).query else "?"
+    # A form submission must become a GET at the registered client callback.
+    return RedirectResponse(redirect_uri + separator + urlencode(params), status_code=303)
+
+
 @app.post("/oauth/approve")
 async def approve(request: Request):
     check_origin(request)
@@ -436,11 +442,11 @@ async def approve(request: Request):
         raise HTTPException(403, "Account does not match approval")
     redirect_uri = approved["redirect_uri"]
     if form.get("decision") != "allow":
-        return RedirectResponse(redirect_uri + "?" + urlencode({"error": "access_denied", "state": approved["state"]}))
+        return oauth_callback(redirect_uri, {"error": "access_denied", "state": approved["state"]})
     code = sign("auth_code", user["sub"], BASE_URL + "/authcode", 90,
                 client_hash=approved["client_hash"], redirect_uri=redirect_uri,
                 challenge=approved["challenge"], resource=RESOURCE, scope=SCOPES)
-    return RedirectResponse(redirect_uri + "?" + urlencode({"code": code, "state": approved["state"]}))
+    return oauth_callback(redirect_uri, {"code": code, "state": approved["state"]})
 
 def consume_auth_code(jti: str, expires_at: int) -> None:
     """Single use, bounded memory. Never clear live redemptions under load."""
