@@ -6,10 +6,13 @@ a query string, a plaintext config file, or console output.
 from __future__ import annotations
 import argparse
 import asyncio
+from contextlib import nullcontext
+import errno
 import getpass
 import inspect
 import json
 import os
+from pathlib import Path
 import re
 import sys
 import webbrowser
@@ -166,8 +169,9 @@ async def run_relay(server_url: str, token: str):
                         if result_json and "error" in result_json:
                             result = {"isError": True, "error": result_json["error"]}
                     await ws.send(json.dumps({"id": request.get("id"), "result": result}))
-        except (websockets.exceptions.InvalidStatus, websockets.exceptions.InvalidStatusCode) as exc:
-            status = getattr(getattr(exc, "response", None), "status_code", None)
+        except websockets.exceptions.InvalidHandshake as exc:
+            response = getattr(exc, "response", None)
+            status = getattr(response, "status_code", getattr(exc, "status_code", None))
             if status in (401, 403):
                 print("[PAIRING INVALID] Device authorization expired or revoked.")
                 print("Sign in to staging and generate a fresh device token to retry.")
@@ -216,6 +220,26 @@ def logout_pairing(profile: str | None = None) -> bool:
     print("[LOGGED OUT] Server authorization revoked and saved pairing removed.")
     return True
 
+def staging_instance_lock():
+    """Hold a Windows file lock for the life of the staging process."""
+    if os.name != "nt":
+        return nullcontext()
+    import msvcrt
+
+    folder = Path(os.environ["LOCALAPPDATA"]) / "FlickerLinkPro2"
+    folder.mkdir(parents=True, exist_ok=True)
+    lock = (folder / "staging-agent.lock").open("a+b")
+    try:
+        lock.seek(0)
+        msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+    except OSError as exc:
+        lock.close()
+        if exc.errno == errno.EACCES:
+            return None
+        raise
+    return lock
+
+
 def main():
     parser = argparse.ArgumentParser(description="Flicker Link Pro Windows agent")
     parser.add_argument("--server", help="Optional HTTPS relay URL")
@@ -229,11 +253,21 @@ def main():
         if not logout_pairing(profile=args.profile):
             raise SystemExit(1)
         return
+    selected = _profile_for(args.server, args.profile)
+    lock = staging_instance_lock() if selected == "staging" else nullcontext()
+    if lock is None:
+        print("[ALREADY RUNNING] The staging agent is already connected or starting.")
+        return
+    with lock:
+        run_agent(args, selected)
+
+
+def run_agent(args, selected):
     try:
         base, token = resolve_pairing(args.server, args.token, profile=args.profile)
         while True:
             result = asyncio.run(run_relay(base, token))
-            if result is not False or _profile_for(args.server, args.profile) != "staging":
+            if result is not False or selected != "staging":
                 break
             print("[RETRY PAIRING] The previous staging token was not accepted.")
             print("Create a fresh device pairing from the staging dashboard.")
