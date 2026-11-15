@@ -28,6 +28,11 @@ from device_registry import DeviceRegistry
 
 BASE_URL = os.getenv("BASE_URL", "https://flicker-link-pro.onrender.com").rstrip("/")
 RESOURCE = BASE_URL + "/mcp"
+SERVER_NAME = (
+    "flicker-link-pro-staging"
+    if urlsplit(BASE_URL).hostname == "flicker-link-pro-2-staging.onrender.com"
+    else "flicker-link-pro"
+)
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 SECRET = os.getenv("FLICKER_SECRET", "")
@@ -556,14 +561,28 @@ async def mcp(request: Request):
         version = desired if desired in versions else "2025-03-26"
         return {"jsonrpc": "2.0", "id": req_id, "result": {
             "protocolVersion": version, "capabilities": {"tools": {"listChanged": False}},
-            "serverInfo": {"name": "flicker-link-pro", "version": "2.2.0"}}}
+            "serverInfo": {"name": SERVER_NAME, "version": "2.2.0"}}}
     if method == "ping":
         return {"jsonrpc": "2.0", "id": req_id, "result": {}}
-    ws = ACTIVE_SOCKETS.get(account["sub"])
-    active_id = ACTIVE_DEVICE_IDS.get(account["sub"])
+    owner = account["sub"]
+    ws = ACTIVE_SOCKETS.get(owner)
+    active_id = ACTIVE_DEVICE_IDS.get(owner)
+    params = data.get("params")
+    if method == "tools/call" and isinstance(params, dict) and params.get("name") == "list_devices":
+        devices = [
+            {"id": device["id"], "label": device["label"],
+             "online": ws is not None and device["id"] == active_id,
+             "last_seen_at": device["last_seen_at"]}
+            for device in await asyncio.to_thread(lambda: device_registry().list_owned(owner))
+            if device["revoked_at"] is None
+        ]
+        return {"jsonrpc": "2.0", "id": req_id, "result": {
+            "content": [{"type": "text", "text": json.dumps({"devices": devices})}],
+            "structuredContent": {"devices": devices},
+        }}
     if ws is not None and (not active_id or not device_registry().is_active(active_id)):
         ws = None
-    if method == "tools/list" and ws is None:
+    if method == "tools/list":
         return {"jsonrpc": "2.0", "id": req_id, "result": {"tools": CATALOG}}
     if method not in ("tools/list", "tools/call"):
         return {"jsonrpc": "2.0", "id": req_id,

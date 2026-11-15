@@ -169,7 +169,7 @@ def perform(n,a):
         if sid:JOBS[sid]['status']='terminated'
         return {'status':'termination-requested','pid':pid}
     if n=='system_resources':
-        ps=psutil();return {'cpu_percent':ps.cpu_percent(.1),'memory':ps.virtual_memory()._asdict(),'disk':shutil.disk_usage(path.home())._asdict()}
+        ps=psutil();return {'cpu_percent':ps.cpu_percent(.1),'memory':ps.virtual_memory()._asdict(),'disk':shutil.disk_usage(pathlib.Path.home())._asdict()}
     if n=='network_info':
         return {'hostname':socket.gethostname(),'addresses':psutil().net_if_addrs().__str__()}
     if n in ('docker_containers','docker_action'):
