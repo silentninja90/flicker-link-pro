@@ -46,9 +46,15 @@ def launch(command,cwd=None):
             for line in proc.stdout:
                 with LOCK:record['output']+=line
             code=proc.wait()
-            with LOCK:record.update(status='finished' if code==0 else 'failed',exit_code=code)
+            with LOCK:
+                record['exit_code'] = code
+                if record['status'] != 'terminated':
+                    record['status'] = 'finished' if code == 0 else 'failed'
         except Exception as exc:
-            with LOCK:record.update(status='failed',error=str(exc))
+            with LOCK:
+                record['error'] = str(exc)
+                if record['status'] != 'terminated':
+                    record['status'] = 'failed'
     threading.Thread(target=collect,daemon=True).start()
     return {'session_id':job,'pid':proc.pid,'status':'running'}
 def job_result(a):
@@ -181,8 +187,29 @@ def perform(n,a):
         if sid:pid=JOBS[sid]['pid']
         if not sid and not a.get('confirm',False) and n!='process_kill':raise ValueError('confirm=true required for arbitrary PID')
         if pid is None:raise ValueError('pid or session_id required')
-        psutil().Process(int(pid)).terminate()
-        if sid:JOBS[sid]['status']='terminated'
+        pid = int(pid)
+        process_api = psutil()
+        with LOCK:
+            job = JOBS[sid] if sid else next(
+                (job for job in JOBS.values()
+                 if job['pid'] == pid and job['process'].poll() is None), None
+            )
+            if job and job['process'].poll() is not None:
+                return {'status':'already-exited','pid':pid}
+            process = process_api.Process(pid)
+            children = process.children(recursive=True) if job else []
+            for child in reversed(children):
+                try:
+                    child.terminate()
+                except process_api.NoSuchProcess:
+                    pass
+            try:
+                process.terminate()
+            except process_api.NoSuchProcess:
+                if not job:
+                    raise
+            if job:
+                job['status'] = 'terminated'
         return {'status':'termination-requested','pid':pid}
     if n=='system_resources':
         ps=psutil();return {'cpu_percent':ps.cpu_percent(.1),'memory':ps.virtual_memory()._asdict(),'disk':shutil.disk_usage(pathlib.Path.home())._asdict()}
