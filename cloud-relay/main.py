@@ -38,6 +38,10 @@ GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 SECRET = os.getenv("FLICKER_SECRET", "")
 SCOPES = "laptop:control"
 CATALOG = json.loads((pathlib.Path(__file__).parent / "tool_catalog.json").read_text(encoding="utf-8"))
+TOOL_SECURITY_SCHEMES = [{"type": "oauth2", "scopes": [SCOPES]}]
+for tool in CATALOG:
+    tool["securitySchemes"] = TOOL_SECURITY_SCHEMES
+    tool.setdefault("_meta", {})["securitySchemes"] = TOOL_SECURITY_SCHEMES
 ACTIVE_SOCKETS = {}
 ACTIVE_DEVICE_IDS = {}
 PENDING_CALLS = {}

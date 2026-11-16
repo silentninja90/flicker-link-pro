@@ -87,7 +87,12 @@ async def test():
         assert x.status_code == 200 and x.json()["result"]["protocolVersion"] == "2025-11-25"
         x = await client.post("/mcp",headers=auth,
                               json={"jsonrpc":"2.0","id":12,"method":"tools/list"})
-        assert x.status_code == 200 and len(x.json()["result"]["tools"]) == 66
+        assert x.status_code == 200
+        catalog = x.json()["result"]["tools"]
+        assert len(catalog) == 66
+        expected_auth = [{"type": "oauth2", "scopes": ["laptop:control"]}]
+        assert all(tool["securitySchemes"] == expected_auth for tool in catalog)
+        assert all(tool["_meta"]["securitySchemes"] == expected_auth for tool in catalog)
         x = await client.post("/mcp",headers=auth,
                               json={"jsonrpc":"2.0","id":13,"method":"tools/call",
                                     "params":{"name":"unused"}})
