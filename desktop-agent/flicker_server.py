@@ -37,9 +37,9 @@ def launch(command,cwd=None):
     kwargs={'cwd':cwd,'stdout':subprocess.PIPE,'stderr':subprocess.STDOUT,'stdin':subprocess.PIPE,'text':True,'bufsize':1}
     if os.name=='nt':kwargs['creationflags']=subprocess.CREATE_NEW_PROCESS_GROUP
     else:kwargs['start_new_session']=True
-    proc=subprocess.Popen(command,shell=True,**kwargs)
+    proc=subprocess.Popen(command,shell=isinstance(command, str),**kwargs)
     job='job_'+uuid.uuid4().hex
-    record={'session_id':job,'command':command,'pid':proc.pid,'status':'running','output':'','process':proc,'created_at':time.time()}
+    record={'session_id':job,'command':command if isinstance(command, str) else subprocess.list2cmdline(command),'pid':proc.pid,'status':'running','output':'','process':proc,'created_at':time.time()}
     with LOCK:JOBS[job]=record
     def collect():
         try:
@@ -153,10 +153,26 @@ def perform(n,a):
         return {'status':'extracted'}
     if n in ('run_code','start_process'):return launch(a['command'],a.get('working_directory'))
     if n=='run_wsl':
-        import shlex
-        cmd=a['command'];wd=a.get('wsl_working_directory')
-        if wd:cmd=f'cd {shlex.quote(wd)} && {cmd}'
-        return launch('wsl.exe bash -lc '+subprocess.list2cmdline([cmd]))
+        if shutil.which("wsl.exe") is None:
+            raise RuntimeError("WSL is unavailable. Install WSL and a Linux distribution with Bash.")
+        options = {"capture_output": True, "timeout": 10, "creationflags": subprocess.CREATE_NO_WINDOW}
+        try:
+            installed = subprocess.run(["wsl.exe", "--list", "--quiet"], **options)
+            distros = installed.stdout.decode("utf-16-le", errors="replace").strip("\ufeff").replace("\x00", "").splitlines()
+            if installed.returncode != 0 or not any(
+                name.strip() and name.strip().casefold() not in {"docker-desktop", "docker-desktop-data"}
+                for name in distros
+            ):
+                raise RuntimeError("No user Linux distribution is available. Install one with Bash and set it as the WSL default.")
+            probe = subprocess.run(["wsl.exe", "--exec", "/bin/bash", "-c", "exit 0"], **options)
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError("WSL did not start within 10 seconds. Open the default Linux distribution and retry.") from exc
+        if probe.returncode != 0:
+            raise RuntimeError("Bash is unavailable in the default WSL distribution. Set a user Linux distribution with Bash as the default.")
+        command = ["wsl.exe"]
+        if a.get("wsl_working_directory"):
+            command.extend(["--cd", a["wsl_working_directory"]])
+        return launch([*command, "--exec", "/bin/bash", "-lc", a["command"]])
     if n=='interact_with_process':return job_result(a)
     if n=='list_sessions':return {'sessions':[{k:v for k,v in j.items() if k not in ('process','output')} for j in JOBS.values()]}
     if n in ('process_list','list_processes'):return {'processes':process_list()}

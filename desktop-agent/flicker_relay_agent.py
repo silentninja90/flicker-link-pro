@@ -164,7 +164,7 @@ async def run_relay(server_url: str, token: str):
                     if request.get("method") == "tools/list":
                         result = {"tools": CATALOG}
                     else:
-                        result_json = handle(request)
+                        result_json = await asyncio.to_thread(handle, request)
                         result = result_json.get("result", {}) if result_json else {}
                         if result_json and "error" in result_json:
                             result = {"isError": True, "error": result_json["error"]}
