@@ -14,6 +14,25 @@ by this staging installer. The production Render service remains unchanged.
 The desktop shortcut launches Start-FlickerLinkPro2.cmd, which runs:
 flicker_relay_agent.py --profile staging
 
+## Pairing and sensitive controls
+
+Staging supports one active computer pairing per signed-in account. To replace
+it, revoke the existing computer from the device page first; pairing never
+silently removes an existing computer.
+
+The first sensitive tool request shows a local Windows approval warning. If
+approved, that pairing can use all sensitive tools, including unrestricted file
+operations available to the signed-in Windows user, commands, process and Docker
+control, SQL, HTTPS transfers, screenshots, and desktop input. The decision is
+stored locally in Windows Credential Manager and survives app restarts and
+temporary network outages. Denial also persists for the pairing.
+
+Use the desktop app's sign-out/unpair action or revoke the computer from the
+device page to clear consent. Signing out of Google in the browser only ends the
+website session; it does not unlink the desktop pairing. A new pairing starts
+without a saved consent decision. If the local warning cannot be shown or
+answered, the requested action is rejected.
+
 The staging profile connects only to:
 https://flicker-link-pro-2-staging.onrender.com
 

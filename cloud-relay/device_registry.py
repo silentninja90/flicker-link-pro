@@ -67,11 +67,14 @@ class DeviceRegistry:
         identity = uuid.uuid4().hex
         now = int(time.time())
         with self._connect() as connection:
+            # Serialize pairing attempts so concurrent requests cannot both pass
+            # the one-computer-per-account check.
+            connection.execute("BEGIN IMMEDIATE")
             count = connection.execute(
                 "SELECT COUNT(*) FROM device_credentials WHERE owner_sub=? AND revoked_at IS NULL",
                 (owner_sub,)).fetchone()[0]
-            if count >= 10:
-                raise ValueError("Device limit reached. Revoke a device before pairing another.")
+            if count >= 1:
+                raise ValueError("One-computer limit reached. Remove the currently paired computer before pairing a replacement.")
             connection.execute(
                 """INSERT INTO device_credentials
                    (id, owner_sub, label, key_digest, created_at)

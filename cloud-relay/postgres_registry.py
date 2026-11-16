@@ -67,8 +67,8 @@ class PostgresDeviceRegistry:
                     cur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (owner_sub,))
                     cur.execute("""SELECT COUNT(*) FROM device_credentials
                                    WHERE owner_sub=%s AND revoked_at IS NULL""", (owner_sub,))
-                    if cur.fetchone()[0] >= 10:
-                        raise ValueError("Device limit reached. Revoke a device before pairing another.")
+                    if cur.fetchone()[0] >= 1:
+                        raise ValueError("One-computer limit reached. Remove the currently paired computer before pairing a replacement.")
                     cur.execute("""INSERT INTO device_credentials
                                    (id, owner_sub, label, key_digest, created_at)
                                    VALUES (%s, %s, %s, %s, %s)""",

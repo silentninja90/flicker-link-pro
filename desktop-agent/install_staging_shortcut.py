@@ -57,10 +57,11 @@ def main():
         raise RuntimeError("Flicker Link Pro 2 launcher not found; refusing install")
     if not (DEST / ".venv" / "Scripts" / "python.exe").exists():
         raise RuntimeError("Flicker Link Pro 2 Python environment missing")
-    additions = ["credential_store.py"]
+    additions = ["credential_store.py", "sensitive_controls.py"]
     originals = ["flicker_relay_agent.py", "Start-FlickerLinkPro2.cmd", "Sign-Out.cmd"]
-    if not (SOURCE / "flicker_relay_agent.py").is_file():
-        raise RuntimeError("Source agent missing")
+    for f in ("flicker_relay_agent.py", *additions):
+        if not (SOURCE / f).is_file():
+            raise RuntimeError("Source file missing: " + f)
     for f in originals:
         if not (DEST / f).is_file():
             raise RuntimeError("Expected Flicker Link Pro 2 original missing: " + f)
@@ -76,11 +77,13 @@ def main():
     backup_dir.mkdir(parents=False, exist_ok=False)
     for f in originals:
         shutil.copy2(DEST / f, backup_dir / f)
-    existing_store = DEST / "credential_store.py"
-    if existing_store.exists():
-        shutil.copy2(existing_store, backup_dir / "credential_store.py")
+    for f in additions:
+        existing_file = DEST / f
+        if existing_file.exists():
+            shutil.copy2(existing_file, backup_dir / f)
     shutil.copy2(SOURCE / "flicker_relay_agent.py", DEST / "flicker_relay_agent.py")
-    shutil.copy2(SOURCE / "credential_store.py", DEST / "credential_store.py")
+    for f in additions:
+        shutil.copy2(SOURCE / f, DEST / f)
     (DEST / "Start-FlickerLinkPro2.cmd").write_text(START, encoding="utf-8")
     (DEST / "Sign-Out.cmd").write_text(SIGNOUT, encoding="utf-8")
     print("INSTALLED: Staging agent and independent launcher")

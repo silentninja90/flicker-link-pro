@@ -15,17 +15,47 @@ import os
 from pathlib import Path
 import re
 import sys
+import time
 import webbrowser
 import websockets
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 
-from credential_store import save_credential, load_credential, delete_credential
+from credential_store import (
+    save_credential, load_credential, delete_credential,
+    delete_sensitive_consent,
+)
 from flicker_server import handle, CATALOG
+from sensitive_controls import authorize_sensitive_tool, is_sensitive_tool
 
 DEFAULT_SERVER = "https://flicker-link-pro.onrender.com"
 STAGING_SERVER = "https://flicker-link-pro-2-staging.onrender.com"
 STAGING_CREDENTIAL_TARGET = "FlickerLinkPro2/StagingDevicePairing"
+DEFAULT_CONSENT_TARGET = "FlickerLinkPro2/DeviceConsent"
+STAGING_CONSENT_TARGET = "FlickerLinkPro2/StagingDeviceConsent"
+CATALOG_NAMES = frozenset(tool["name"] for tool in CATALOG)
+
+
+def _websocket_is_open(ws) -> bool:
+    state = getattr(ws, "state", None)
+    if state is not None:
+        return getattr(state, "name", str(state)).upper() == "OPEN"
+    return bool(getattr(ws, "open", False))
+
+
+def _server_confirms_revoked(server_url: str, token: str) -> bool:
+    request = Request(
+        server_url.rstrip("/") + "/devices/current",
+        headers={"Authorization": "Bearer " + token},
+        method="GET",
+    )
+    try:
+        with urlopen(request, timeout=10) as response:
+            return response.status == 401
+    except HTTPError as exc:
+        return exc.code == 401
+    except (URLError, TimeoutError, OSError):
+        return False
 
 
 def _profile_for(server: str | None, profile: str | None) -> str:
@@ -43,7 +73,15 @@ def _load_for(profile: str):
             if profile == "staging" else load_credential())
 
 
+def _consent_target_for(profile: str) -> str:
+    return STAGING_CONSENT_TARGET if profile == "staging" else DEFAULT_CONSENT_TARGET
+
+
 def _save_for(profile: str, server: str, token: str):
+    saved = _load_for(profile)
+    if (not saved or saved[0].rstrip("/") != server.rstrip("/") or
+            saved[1] != token):
+        delete_sensitive_consent(_consent_target_for(profile))
     if profile == "staging":
         save_credential(server, token, target=STAGING_CREDENTIAL_TARGET)
     else:
@@ -51,6 +89,7 @@ def _save_for(profile: str, server: str, token: str):
 
 
 def _delete_for(profile: str):
+    delete_sensitive_consent(_consent_target_for(profile))
     if profile == "staging":
         delete_credential(target=STAGING_CREDENTIAL_TARGET)
     else:
@@ -132,7 +171,8 @@ def resolve_pairing(server: str | None, token: str | None,
     _save_for(selected, new_server, new_token)
     return new_server, new_token
 
-async def run_relay(server_url: str, token: str):
+async def run_relay(server_url: str, token: str,
+                    consent_target: str = DEFAULT_CONSENT_TARGET):
     base = server_url.rstrip("/")
     if base.startswith("https://"):
         base = "wss://" + base[8:]
@@ -164,6 +204,58 @@ async def run_relay(server_url: str, token: str):
                     if request.get("method") == "tools/list":
                         result = {"tools": CATALOG}
                     else:
+                        params = request.get("params") or {}
+                        tool_name = params.get("name") if request.get("method") == "tools/call" else None
+                        deadline = request.get("_flicker_deadline_unix")
+                        if not isinstance(deadline, (int, float)):
+                            deadline = None
+                        if (request.get("method") == "tools/call" and deadline is not None
+                                and time.time() >= deadline):
+                            result = {
+                                "isError": True,
+                                "content": [{"type": "text", "text": "Tool request expired before execution; no action was run."}],
+                            }
+                            await ws.send(json.dumps({"id": request.get("id"), "result": result}))
+                            continue
+                        if isinstance(tool_name, str) and tool_name in CATALOG_NAMES and is_sensitive_tool(tool_name):
+                            try:
+                                approved = await asyncio.to_thread(
+                                    authorize_sensitive_tool, tool_name, server_url,
+                                    token, consent_target, deadline,
+                                )
+                            except Exception:
+                                approved = False
+                            # Revocation can close the WebSocket while the local
+                            # approval dialog is open. Do not start the action.
+                            if not _websocket_is_open(ws):
+                                break
+                            if deadline is not None and time.time() >= deadline:
+                                approved = False
+                            if not approved:
+                                result = {
+                                    "isError": True,
+                                    "content": [{
+                                        "type": "text",
+                                        "text": (
+                                            "Sensitive controls are not approved for this pairing; "
+                                            "no action was run. If no warning appeared, open the "
+                                            "Flicker Link Pro app on this computer. To change a "
+                                            "saved denial, sign out and pair this computer again."
+                                        ),
+                                    }],
+                                }
+                                await ws.send(json.dumps({"id": request.get("id"), "result": result}))
+                                continue
+                        if request.get("method") == "tools/call":
+                            if not _websocket_is_open(ws):
+                                break
+                            if deadline is not None and time.time() >= deadline:
+                                result = {
+                                    "isError": True,
+                                    "content": [{"type": "text", "text": "Tool request expired before execution; no action was run."}],
+                                }
+                                await ws.send(json.dumps({"id": request.get("id"), "result": result}))
+                                continue
                         result_json = await asyncio.to_thread(handle, request)
                         result = result_json.get("result", {}) if result_json else {}
                         if result_json and "error" in result_json:
@@ -173,9 +265,11 @@ async def run_relay(server_url: str, token: str):
             response = getattr(exc, "response", None)
             status = getattr(response, "status_code", getattr(exc, "status_code", None))
             if status in (401, 403):
-                print("[PAIRING INVALID] Device authorization expired or revoked.")
-                print("Sign in to staging and generate a fresh device token to retry.")
-                return False
+                if _server_confirms_revoked(server_url, token):
+                    print("[PAIRING INVALID] Device authorization expired or revoked.")
+                    print("Sign in to staging and generate a fresh device token to retry.")
+                    return False
+                print("[RETRY] Pairing status could not be confirmed; keeping saved credentials.")
             print("[RETRY] Relay unavailable; retrying in 5 seconds.")
             await asyncio.sleep(5)
         except (websockets.exceptions.ConnectionClosed, ConnectionRefusedError, OSError):
@@ -266,8 +360,13 @@ def run_agent(args, selected):
     try:
         base, token = resolve_pairing(args.server, args.token, profile=args.profile)
         while True:
-            result = asyncio.run(run_relay(base, token))
-            if result is not False or selected != "staging":
+            result = asyncio.run(run_relay(base, token, _consent_target_for(selected)))
+            if result is not False:
+                break
+            # A rejected device credential confirms revocation; remove its local
+            # pairing and consent before exiting or asking for a replacement.
+            _delete_for(selected)
+            if selected != "staging":
                 break
             print("[RETRY PAIRING] The previous staging token was not accepted.")
             print("Create a fresh device pairing from the staging dashboard.")

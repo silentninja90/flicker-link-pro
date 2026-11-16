@@ -398,6 +398,20 @@ async def revoke_current(request: Request):
     await disconnect_device(device["sub"], device["id"])
     return Response(status_code=204, headers={"Cache-Control": "no-store"})
 
+@app.get("/devices/current")
+async def current_device(request: Request):
+    """Read-only pairing check so the desktop can distinguish revocation from outages."""
+    header = request.headers.get("authorization", "")
+    if not header.startswith("Bearer "):
+        raise HTTPException(401, "Missing device authorization")
+    device = device_registry().authenticate(header[7:])
+    if device is None:
+        raise HTTPException(401, "Device authorization revoked or invalid")
+    return JSONResponse(
+        {"id": device["id"], "label": device["label"]},
+        headers={"Cache-Control": "no-store"},
+    )
+
 @app.get("/auth/logout")
 async def logout():
     r = RedirectResponse("/")
@@ -599,6 +613,9 @@ async def mcp(request: Request):
     try:
         forwarded = dict(data)
         forwarded["id"] = call_id
+        # Leave five seconds of margin before the MCP request's 45-second wait
+        # expires, so queued desktop prompts cannot execute stale calls.
+        forwarded["_flicker_deadline_unix"] = time.time() + 40.0
         await ws.send_text(json.dumps(forwarded))
         result = await asyncio.wait_for(future, timeout=45.0)
         return {"jsonrpc": "2.0", "id": req_id, "result": result}

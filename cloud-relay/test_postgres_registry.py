@@ -88,16 +88,15 @@ def run():
             assert restarted.revoke_credential(two["token"])
             assert not registry.is_active(two["id"])
             assert not registry.revoke_credential(two["token"])
-            for i in range(10):
-                registry.issue("bulk-user", "Device "+str(i))
+            registry.issue("single-device-user", "Computer")
             try:
-                registry.issue("bulk-user", "Eleventh")
+                registry.issue("single-device-user", "Replacement")
                 raise AssertionError("Device limit not enforced")
             except ValueError as exc:
                 assert "limit" in str(exc).lower()
-            assert len(registry.list_owned("bulk-user")) == 10
+            assert len(registry.list_owned("single-device-user")) == 1
             assert "token" not in repr(registry.list_owned(user))
-    print("PASS: PostgreSQL adapter SQL, TLS verify-full, HMAC, persistence, owner-only revocation, 10-device limit")
+    print("PASS: PostgreSQL adapter SQL, TLS verify-full, HMAC, persistence, owner-only revocation, one-device limit")
 
 if __name__ == "__main__":
     run()

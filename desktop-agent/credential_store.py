@@ -6,8 +6,11 @@ reboots and app relaunches until logout, uninstall cleanup, or account revocatio
 from __future__ import annotations
 import ctypes
 from ctypes import wintypes
+import hashlib
+import hmac
 import json
 import os
+import time
 
 TARGET = "FlickerLinkPro2/DevicePairing"
 CRED_TYPE_GENERIC = 1
@@ -82,6 +85,76 @@ def load_credential(target: str = TARGET):
         api.CredFree(ctypes.cast(result, ctypes.c_void_p))
 
 def delete_credential(target: str = TARGET):
+    if not _api().CredDeleteW(target, CRED_TYPE_GENERIC, 0):
+        err = ctypes.get_last_error()
+        if err != ERROR_NOT_FOUND:
+            raise ctypes.WinError(err)
+
+
+def _write_json_credential(target: str, data: dict):
+    raw = json.dumps(data, separators=(",", ":")).encode("utf-16-le")
+    if len(raw) > 2560:
+        raise ValueError("Credential data exceeds Windows Credential Manager size limit")
+    buffer = (ctypes.c_ubyte * len(raw)).from_buffer_copy(raw)
+    credential = CREDENTIALW()
+    credential.Type = CRED_TYPE_GENERIC
+    credential.TargetName = target
+    credential.CredentialBlobSize = len(raw)
+    credential.CredentialBlob = ctypes.cast(buffer, ctypes.POINTER(ctypes.c_ubyte))
+    credential.Persist = CRED_PERSIST_LOCAL_MACHINE
+    credential.UserName = "FlickerLinkPro"
+    if not _api().CredWriteW(ctypes.byref(credential), 0):
+        raise ctypes.WinError(ctypes.get_last_error())
+
+
+def _read_json_credential(target: str) -> dict | None:
+    api = _api()
+    result = PCREDENTIAL()
+    if not api.CredReadW(target, CRED_TYPE_GENERIC, 0, ctypes.byref(result)):
+        err = ctypes.get_last_error()
+        if err == ERROR_NOT_FOUND:
+            return None
+        raise ctypes.WinError(err)
+    try:
+        item = result.contents
+        raw = ctypes.string_at(item.CredentialBlob, item.CredentialBlobSize)
+        value = json.loads(raw.decode("utf-16-le"))
+        return value if isinstance(value, dict) else None
+    finally:
+        api.CredFree(ctypes.cast(result, ctypes.c_void_p))
+
+
+def save_sensitive_consent(server: str, token: str, decision: str, target: str):
+    """Save a pairing-bound allow/deny decision without storing the pairing token."""
+    if decision not in ("allowed", "denied"):
+        raise ValueError("Consent decision must be allowed or denied")
+    if not server.startswith("https://") or not token:
+        raise ValueError("A secure server and pairing credential are required")
+    _write_json_credential(target, {
+        "version": 1,
+        "server": server.rstrip("/"),
+        "token_fingerprint": hashlib.sha256(token.encode("utf-8")).hexdigest(),
+        "decision": decision,
+        "decided_at": int(time.time()),
+    })
+
+
+def load_sensitive_consent(server: str, token: str, target: str) -> str | None:
+    """Return a decision only when it matches the current server and pairing token."""
+    value = _read_json_credential(target)
+    if not value or value.get("version") != 1:
+        return None
+    expected_fingerprint = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    if (value.get("server") != server.rstrip("/") or
+            not isinstance(value.get("token_fingerprint"), str) or
+            not hmac.compare_digest(value["token_fingerprint"], expected_fingerprint)):
+        return None
+    decision = value.get("decision")
+    return decision if decision in ("allowed", "denied") else None
+
+
+def delete_sensitive_consent(target: str):
+    """Forget the saved decision for a pairing."""
     if not _api().CredDeleteW(target, CRED_TYPE_GENERIC, 0):
         err = ctypes.get_last_error()
         if err != ERROR_NOT_FOUND:

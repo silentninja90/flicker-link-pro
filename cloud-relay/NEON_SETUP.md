@@ -39,7 +39,9 @@ remain separate.
 
 cloud-relay/postgres_registry.py uses psycopg2, transactional SQL,
 parameter binding, owner-scoped revocation, HMAC-SHA256 credential digests,
-and a 10-active-device limit per Google subject. It forces TLS verify-full
+and a one-active-device limit per Google subject. Pairing a replacement requires
+the owner to revoke the current computer first; existing pairings are never
+silently replaced. It forces TLS verify-full
 with the certifi CA bundle even if the URI requested weaker sslmode.
 
 cloud-relay/main.py chooses PostgreSQL whenever DATABASE_URL exists; the
