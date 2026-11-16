@@ -323,11 +323,19 @@ async def devices(request: Request):
     email = html.escape(user.get("email", ""), quote=True)
     csrf = html.escape(user["csrf"], quote=True)
     items = registry.list_owned(user["sub"])
+    connected_device = (
+        ACTIVE_DEVICE_IDS.get(user["sub"]) if user["sub"] in ACTIVE_SOCKETS else None
+    )
     device_forms = []
     for item in items:
         name = html.escape(item["label"], quote=True)
         identity = html.escape(item["id"], quote=True)
-        status = "Revoked" if item["revoked_at"] is not None else "Paired"
+        if item["revoked_at"] is not None:
+            status = "Revoked"
+        elif item["id"] == connected_device:
+            status = "Connected"
+        else:
+            status = "Paired, waiting for the Windows app"
         actions = "" if item["revoked_at"] is not None else (
             '<form action="/devices/revoke" method="post">'
             '<input type="hidden" name="csrf" value="' + csrf + '">'
@@ -337,7 +345,7 @@ async def devices(request: Request):
     output = '<html><body style="font:18px sans-serif;max-width:780px;margin:55px auto">'
     output += '<h2>Flicker Link Pro - Paired Computers</h2><p>Signed in as ' + email + '</p>'
     output += '<ul>' + ''.join(device_forms) + '</ul>'
-    output += '<p>Devices stay paired until you revoke them or log out from the desktop app.</p>'
+    output += '<p>Open Flicker Link Pro on your Windows computer, then refresh this page to check its connection.</p>'
     output += ('<form action="/devices/pair" method="post">'
                '<input type="hidden" name="csrf" value="' + csrf + '">'
                '<label>Computer name <input name="label" maxlength="80" value="Windows computer"></label> '
@@ -358,14 +366,13 @@ async def pair(request: Request):
         created = device_registry().issue(user["sub"], str(form.get("label", "Windows computer")))
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
-    command = "python flicker_relay_agent.py --server " + BASE_URL + " --token " + created["token"]
     return HTMLResponse(
         '<html><body style="font:16px sans-serif;max-width:900px;margin:50px auto">'
-        '<h2>One-time device pairing credential</h2>'
-        '<p>Run this on your computer once. The app then saves the pairing in Windows Credential Manager.'
+        '<h2>Device pairing token</h2>'
+        '<p>Open Flicker Link Pro on your Windows computer. Paste the token below into the app when it asks for the pairing token, then press Enter.'
         ' Treat this credential like a password and do not share it.</p>'
         '<pre style="white-space:pre-wrap;overflow-wrap:anywhere;background:#eee;padding:15px">'
-        + html.escape(command) +
+        + html.escape(created["token"]) +
         '</pre><p><a href="/devices">Back to paired computers</a></p></body></html>',
         headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
 

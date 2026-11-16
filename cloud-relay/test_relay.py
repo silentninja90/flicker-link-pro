@@ -62,8 +62,11 @@ async def test():
         x = await client.post("/devices/pair", cookies=cookies,
                               headers={"Origin": BASE}, data={"csrf":csrf})
         assert x.status_code == 200
-        match = re.search(r"--token\s+([A-Za-z0-9_.-]+)", x.text)
+        match = re.search(r"<pre[^>]*>(flk2_[A-Za-z0-9_-]+)</pre>", x.text)
         assert match and main.device_registry().authenticate(match.group(1))["sub"] == account
+        assert "--token" not in x.text
+        x = await client.get("/devices", cookies=cookies)
+        assert x.status_code == 200 and "Paired, waiting for the Windows app" in x.text
         code = main.sign("auth_code", account, BASE + "/authcode", 90,
                          client_hash=main.digest(cid), redirect_uri=callback,
                          challenge=main.digest(verifier), resource=RESOURCE, scope="laptop:control")
