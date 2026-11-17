@@ -5,6 +5,8 @@ Device pairing is available only in a Google-authenticated browser session.
 """
 import asyncio
 import base64
+from contextlib import asynccontextmanager, suppress
+from datetime import datetime, timezone
 import hashlib
 import html
 import json
@@ -20,7 +22,7 @@ from urllib.parse import urlencode, urlsplit
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 import jwt
 from jwt import PyJWKClient
 from jwt.exceptions import PyJWTError
@@ -36,12 +38,42 @@ SERVER_NAME = (
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 SECRET = os.getenv("FLICKER_SECRET", "")
+OPENAI_APPS_CHALLENGE = os.getenv("OPENAI_APPS_CHALLENGE", "")
+PURGE_REVOKED = os.getenv("FLICKER_PURGE_REVOKED_DEVICES", "") == "1"
 SCOPES = "laptop:control"
 CATALOG = json.loads((pathlib.Path(__file__).parent / "tool_catalog.json").read_text(encoding="utf-8"))
 TOOL_SECURITY_SCHEMES = [{"type": "oauth2", "scopes": [SCOPES]}]
 for tool in CATALOG:
     tool["securitySchemes"] = TOOL_SECURITY_SCHEMES
     tool.setdefault("_meta", {})["securitySchemes"] = TOOL_SECURITY_SCHEMES
+CATALOG_NAMES = {entry["name"] for entry in CATALOG}
+FREE_CALL_ALLOWANCE = int(os.getenv("FLICKER_FREE_CALL_ALLOWANCE", "0"))
+if FREE_CALL_ALLOWANCE < 0:
+    raise ValueError("FLICKER_FREE_CALL_ALLOWANCE must be zero or positive")
+if FREE_CALL_ALLOWANCE and not os.getenv("DATABASE_URL", "").strip():
+    raise ValueError("A PostgreSQL DATABASE_URL is required to enable tool call allowances")
+STRIPE_KEY = os.getenv("STRIPE_SECRET_KEY", "").strip()
+STRIPE_WEBHOOK = os.getenv("STRIPE_WEBHOOK_SECRET", "").strip()
+STRIPE_PRICE = os.getenv("STRIPE_PRICE_ID", "").strip()
+BILLING = None
+stripe_settings = (STRIPE_KEY, STRIPE_WEBHOOK, STRIPE_PRICE)
+stripe_test_key = STRIPE_KEY.startswith(("sk_test_", "rk_test_"))
+if STRIPE_KEY and stripe_test_key and not SERVER_NAME.endswith("-staging"):
+    logging.getLogger("flicker-link-pro").warning("Stripe sandbox billing is disabled on the production relay")
+elif all(stripe_settings):
+    if not FREE_CALL_ALLOWANCE or not (
+        STRIPE_KEY.startswith(("sk_test_", "rk_test_", "sk_live_", "rk_live_"))
+        and STRIPE_WEBHOOK.startswith("whsec_") and STRIPE_PRICE.startswith("price_")
+    ):
+        raise ValueError("Billing requires the Stripe configuration and an enabled free allowance")
+    if SERVER_NAME.endswith("-staging") and not stripe_test_key:
+        raise ValueError("Staging billing requires a Stripe test key")
+    from stripe_billing import BillingAccountError, StripeBilling
+
+    BILLING = StripeBilling(STRIPE_KEY, STRIPE_WEBHOOK, STRIPE_PRICE, BASE_URL)
+elif any(stripe_settings):
+    logging.getLogger("flicker-link-pro").warning("Stripe billing is disabled until all Stripe settings are configured")
+UNMETERED_TOOLS = {"list_devices", "get_usage_stats"}
 ACTIVE_SOCKETS = {}
 ACTIVE_DEVICE_IDS = {}
 DEVICE_HEARTBEAT_INTERVAL = 120
@@ -49,12 +81,57 @@ PENDING_CALLS = {}
 REDEEMED_CODES = {}  # one-time authorization code ID -> JWT expiration timestamp
 # Authorization codes are invalidated on every process restart.
 PROCESS_CODE_KEY = secrets.token_urlsafe(48)
-app = FastAPI(title="Flicker Link Pro Cloud Relay", version="2.2.0")
+
+async def purge_revoked_devices():
+    while True:
+        try:
+            await asyncio.to_thread(lambda: device_registry().purge_revoked())
+        except Exception as exc:
+            logging.getLogger("flicker-link-pro").warning(
+                "Revoked device cleanup failed: %s", type(exc).__name__)
+        await asyncio.sleep(3600)
+
+
+@asynccontextmanager
+async def lifespan(_app):
+    cleanup = (
+        asyncio.create_task(purge_revoked_devices())
+        if PURGE_REVOKED and os.getenv("DATABASE_URL", "").strip() else None
+    )
+    try:
+        yield
+    finally:
+        if cleanup is not None:
+            cleanup.cancel()
+            with suppress(asyncio.CancelledError):
+                await cleanup
+
+
+app = FastAPI(title="Flicker Link Pro Cloud Relay", version="2.2.0", lifespan=lifespan)
+
+
+def account_usage(owner, *, consume=False):
+    try:
+        return device_registry().usage(owner, FREE_CALL_ALLOWANCE, consume=consume)
+    except Exception:
+        raise HTTPException(503, "Account usage is temporarily unavailable") from None
+
+
+def reset_date(usage):
+    return datetime.fromtimestamp(usage["resets_at"], timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+
+@app.get("/.well-known/openai-apps-challenge", include_in_schema=False)
+async def openai_apps_challenge():
+    """Serve the exact temporary token supplied during publisher verification."""
+    if not OPENAI_APPS_CHALLENGE:
+        raise HTTPException(404, "Domain verification challenge is not configured")
+    return PlainTextResponse(OPENAI_APPS_CHALLENGE, headers={"Cache-Control": "no-store"})
 
 @lru_cache(maxsize=4)
 def _postgres_registry_cached(database_url: str, secret: str):
     from postgres_registry import PostgresDeviceRegistry
-    return PostgresDeviceRegistry(database_url, secret)
+    return PostgresDeviceRegistry(database_url, secret, meter_usage=bool(FREE_CALL_ALLOWANCE))
 
 
 def device_registry():
@@ -317,7 +394,80 @@ async def home(request: Request):
     user = session(request)
     if user:
         return RedirectResponse("/devices")
-    return HTMLResponse('<html><body style="font:18px sans-serif;max-width:580px;margin:70px auto"><h2>Flicker Link Pro</h2><p>Sign in with Google to pair your computer securely.</p><a href="/auth/google/start">Continue with Google</a></body></html>')
+    return HTMLResponse('<html lang="en"><body style="font:18px sans-serif;max-width:580px;margin:70px auto"><h1>Flicker Link Pro</h1><p>Connect your Windows computer to your Flicker Link Pro account.</p><a href="/auth/google/start">Continue with Google</a><p><a href="/support">Get support</a></p></body></html>')
+
+
+@app.get("/support")
+async def support():
+    return HTMLResponse(
+        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        '<title>Flicker Link Pro Support</title></head>'
+        '<body style="font:18px system-ui;margin:3rem auto;max-width:40rem;padding:0 1rem">'
+        '<main><h1>Flicker Link Pro Support</h1>'
+        '<p>Email <a href="mailto:flickerlinkpro@gmail.com">flickerlinkpro@gmail.com</a> '
+        'for help with pairing, usage, or removing a computer.</p>'
+        '<p>Include the error message and your Windows version. Keep passwords and pairing codes private.</p>'
+        '<p><a href="/devices">Manage your paired computer</a></p></main></body></html>'
+    )
+
+
+async def billing_form(request):
+    if BILLING is None:
+        raise HTTPException(404)
+    check_origin(request)
+    user = session(request)
+    if not user:
+        raise HTTPException(401, "Sign in first")
+    form = await request.form()
+    if not secrets.compare_digest(str(form.get("csrf", "")), user["csrf"]):
+        raise HTTPException(403, "Invalid CSRF token")
+    return user
+
+
+async def billing_call(operation, *args):
+    try:
+        return await asyncio.to_thread(lambda: operation(device_registry(), *args))
+    except BillingAccountError as exc:
+        raise HTTPException(400, str(exc)) from None
+    except Exception as exc:
+        logging.getLogger("flicker-link-pro").warning("Billing request failed: %s", type(exc).__name__)
+        raise HTTPException(503, "Billing is temporarily unavailable") from None
+
+
+@app.post("/billing/checkout")
+async def stripe_checkout(request: Request):
+    user = await billing_form(request)
+    url = await billing_call(BILLING.checkout, user["sub"], user.get("email"))
+    return RedirectResponse(url, status_code=303)
+
+
+@app.post("/billing/portal")
+async def stripe_portal(request: Request):
+    user = await billing_form(request)
+    url = await billing_call(BILLING.portal, user["sub"])
+    return RedirectResponse(url, status_code=303)
+
+
+@app.post("/billing/webhook", include_in_schema=False)
+async def stripe_webhook(request: Request):
+    if BILLING is None:
+        raise HTTPException(404)
+    payload = bytearray()
+    async for chunk in request.stream():
+        if len(payload) + len(chunk) > 512 * 1024:
+            raise HTTPException(413, "Webhook payload too large")
+        payload.extend(chunk)
+    from stripe import SignatureVerificationError
+
+    try:
+        customer = BILLING.webhook_customer(bytes(payload), request.headers.get("stripe-signature"))
+    except (SignatureVerificationError, ValueError, KeyError):
+        raise HTTPException(400, "Invalid Stripe event") from None
+    if customer:
+        await billing_call(BILLING.refresh, customer)
+    return Response(status_code=204)
+
 
 @app.get("/devices")
 async def devices(request: Request):
@@ -354,12 +504,34 @@ async def devices(request: Request):
         device_forms.append('<li><strong>' + name + '</strong> - ' + status + actions + '</li>')
     output = '<html><body style="font:18px sans-serif;max-width:780px;margin:55px auto">'
     output += '<h2>Flicker Link Pro - Paired Computers</h2><p>Signed in as ' + email + '</p>'
+    if FREE_CALL_ALLOWANCE:
+        usage = await asyncio.to_thread(account_usage, user["sub"])
+        if usage is None:
+            output += '<p>Your first 30 day usage period starts when your computer connects.</p>'
+        elif usage["unlimited"]:
+            output += '<p>Your membership includes unlimited tool calls.</p>'
+        else:
+            output += (f'<p>Tool calls used in this period: {usage["used"]:,} of '
+                       f'{usage["allowance"]:,}. Resets {reset_date(usage)}.</p>')
+        if BILLING is not None and usage is not None:
+            if request.query_params.get("billing") == "complete" and not usage["unlimited"]:
+                output += '<p>Stripe is confirming your payment. Refresh this page in a moment.</p>'
+            if not usage["unlimited"]:
+                output += ('<h3>Unlimited membership</h3><p>US$5 per month. Renews monthly until canceled.</p>'
+                           '<form action="/billing/checkout" method="post">'
+                           f'<input type="hidden" name="csrf" value="{csrf}">'
+                           '<button type="submit">Continue to Stripe</button></form>')
+            if usage["has_billing"]:
+                output += ('<form action="/billing/portal" method="post">'
+                           f'<input type="hidden" name="csrf" value="{csrf}">'
+                           '<button type="submit">Manage billing or cancel</button></form>')
     output += '<ul>' + ''.join(device_forms) + '</ul>'
     output += '<p>Open Flicker Link Pro on your Windows computer, then refresh this page to check its connection.</p>'
     output += ('<form action="/devices/pair" method="post">'
                '<input type="hidden" name="csrf" value="' + csrf + '">'
                '<label>Computer name <input name="label" maxlength="80" value="Windows computer"></label> '
                '<button type="submit">Pair a new computer</button></form>'
+               '<p><a href="/support">Get support</a></p>'
                '<p><a href="/auth/logout">Sign out of website</a></p></body></html>')
     return HTMLResponse(output, headers={"Cache-Control": "no-store"})
 
@@ -467,13 +639,14 @@ async def authorize(request: Request):
     client_name = html.escape(data["client_name"], quote=True)
     target_host = html.escape(urlsplit(data["redirect_uri"]).netloc, quote=True)
     return HTMLResponse('<html><body style="font:17px sans-serif;max-width:650px;margin:60px auto">'
-        '<h2>Authorize Flicker Link Pro</h2><p>' + client_name + ' requests remote computer control.'
+        '<h2>Authorize Flicker Link Pro</h2><p>' + client_name +
+        ' requests access to the full Flicker Link Pro tool catalog for your paired computer.' +
         '</p><p>Redirect destination: <strong>' + target_host + '</strong></p>'
         '<p>Only approve if you initiated this connection in ChatGPT.</p>'
         '<form method="post" action="/oauth/approve"><input type="hidden" name="consent" value="' +
         html.escape(consent, quote=True) + '"><input type="hidden" name="csrf" value="' +
         html.escape(user["csrf"], quote=True) + '">'
-        '<button type="submit" name="decision" value="allow">Allow laptop control</button> '
+        '<button type="submit" name="decision" value="allow">Allow computer access</button> '
         '<button type="submit" name="decision" value="deny">Deny</button></form></body></html>')
 
 def oauth_callback(redirect_uri, params):
@@ -549,11 +722,12 @@ async def device_websocket(websocket: WebSocket):
         return
     try:
         registry = device_registry()
-        device = registry.authenticate(header[7:])
+        device = await asyncio.to_thread(registry.authenticate, header[7:])
         if device is None:
             await websocket.close(code=1008)
             return
-    except HTTPException:
+        await asyncio.to_thread(registry.touch, device["id"])
+    except Exception:
         await websocket.close(code=1013)
         return
     sub = device["sub"]
@@ -565,7 +739,6 @@ async def device_websocket(websocket: WebSocket):
     await websocket.accept()
     ACTIVE_SOCKETS[sub] = websocket
     ACTIVE_DEVICE_IDS[sub] = device["id"]
-    registry.touch(device["id"])
     presence_id = None
     presence_confirmed = False
     try:
@@ -635,6 +808,7 @@ async def mcp(request: Request):
     ws = ACTIVE_SOCKETS.get(owner)
     active_id = ACTIVE_DEVICE_IDS.get(owner)
     params = data.get("params")
+    tool_name = params.get("name") if isinstance(params, dict) else None
     if method == "tools/call" and isinstance(params, dict) and params.get("name") == "list_devices":
         devices = [
             {"id": device["id"], "label": device["label"],
@@ -647,16 +821,19 @@ async def mcp(request: Request):
             "content": [{"type": "text", "text": json.dumps({"devices": devices})}],
             "structuredContent": {"devices": devices},
         }}
-    if ws is not None and (not active_id or not device_registry().is_active(active_id)):
-        ws = None
     if method == "tools/list":
         return {"jsonrpc": "2.0", "id": req_id, "result": {"tools": CATALOG}}
     if method not in ("tools/list", "tools/call"):
         return {"jsonrpc": "2.0", "id": req_id,
                 "error": {"code": -32601, "message": "Method not found"}}
-    if ws is None:
+    if ws is None or not active_id or not await asyncio.to_thread(
+        lambda: device_registry().is_active(active_id)
+    ):
         return {"jsonrpc": "2.0", "id": req_id,
                 "error": {"code": -32000, "message": "Desktop agent offline. Sign in and pair it at /devices."}}
+    if not isinstance(tool_name, str) or tool_name not in CATALOG_NAMES:
+        return {"jsonrpc": "2.0", "id": req_id,
+                "error": {"code": -32602, "message": "Unknown tool"}}
     call_id = uuid.uuid4().hex
     if len(PENDING_CALLS) >= 100:
         return {"jsonrpc": "2.0", "id": req_id,
@@ -664,6 +841,19 @@ async def mcp(request: Request):
     future = asyncio.get_running_loop().create_future()
     PENDING_CALLS[call_id] = (account["sub"], future)
     try:
+        if FREE_CALL_ALLOWANCE and tool_name not in UNMETERED_TOOLS:
+            usage = await asyncio.to_thread(account_usage, owner, consume=True)
+            if usage is None:
+                raise HTTPException(503, "Account usage is temporarily unavailable")
+            if not usage["allowed"]:
+                message = f"Your free tool call allowance is used up. It resets {reset_date(usage)}."
+                return {"jsonrpc": "2.0", "id": req_id, "result": {
+                    "isError": True,
+                    "content": [{"type": "text", "text": message}],
+                }}
+        if ACTIVE_SOCKETS.get(owner) is not ws or ACTIVE_DEVICE_IDS.get(owner) != active_id:
+            return {"jsonrpc": "2.0", "id": req_id,
+                    "error": {"code": -32000, "message": "Desktop agent connection changed. Try again."}}
         forwarded = dict(data)
         forwarded["id"] = call_id
         # Leave five seconds of margin before the MCP request's 45-second wait

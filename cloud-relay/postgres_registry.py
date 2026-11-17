@@ -5,7 +5,7 @@ queries. Only HMAC digests of high-entropy device credentials are persisted.
 """
 from __future__ import annotations
 
-from contextlib import closing
+from contextlib import closing, contextmanager
 import hashlib
 import hmac
 import secrets
@@ -16,9 +16,12 @@ import uuid
 import certifi
 import psycopg2
 
+USAGE_PERIOD_SECONDS = 30 * 24 * 3600
+REVOKED_RETENTION_SECONDS = 30 * 24 * 3600
+
 
 class PostgresDeviceRegistry:
-    def __init__(self, dsn: str, secret: str):
+    def __init__(self, dsn: str, secret: str, *, meter_usage: bool = False):
         parsed = urlsplit(dsn)
         if parsed.scheme not in ("postgres", "postgresql") or not parsed.hostname:
             raise ValueError("DATABASE_URL must be a PostgreSQL connection URL")
@@ -26,6 +29,7 @@ class PostgresDeviceRegistry:
             raise ValueError("A strong server secret is required")
         self.dsn = dsn
         self.secret = secret.encode("utf-8")
+        self.meter_usage = meter_usage
         with closing(self._connect()) as conn:
             with conn:
                 with conn.cursor() as cur:
@@ -40,6 +44,22 @@ class PostgresDeviceRegistry:
                     )""")
                     cur.execute("""CREATE INDEX IF NOT EXISTS devices_by_owner
                                    ON device_credentials(owner_sub)""")
+                    cur.execute("""CREATE INDEX IF NOT EXISTS revoked_devices_by_date
+                                   ON device_credentials(revoked_at)
+                                   WHERE revoked_at IS NOT NULL""")
+                    if not self.meter_usage:
+                        return
+                    cur.execute("""CREATE TABLE IF NOT EXISTS account_usage (
+                        owner_sub TEXT PRIMARY KEY,
+                        first_connected_at BIGINT NOT NULL,
+                        window_number BIGINT NOT NULL DEFAULT 0,
+                        calls INTEGER NOT NULL DEFAULT 0
+                    )""")
+                    cur.execute("""CREATE TABLE IF NOT EXISTS stripe_billing (
+                        owner_sub TEXT PRIMARY KEY REFERENCES account_usage(owner_sub) ON DELETE CASCADE,
+                        customer_id TEXT NOT NULL UNIQUE,
+                        paid_through BIGINT
+                    )""")
 
     def _connect(self):
         return psycopg2.connect(
@@ -99,9 +119,55 @@ class PostgresDeviceRegistry:
         with closing(self._connect()) as conn:
             with conn:
                 with conn.cursor() as cur:
+                    now = int(time.time())
                     cur.execute("""UPDATE device_credentials SET last_seen_at=%s
-                                   WHERE id=%s AND revoked_at IS NULL""",
-                                (int(time.time()), device_id))
+                                   WHERE id=%s AND revoked_at IS NULL
+                                   RETURNING owner_sub""", (now, device_id))
+                    owner = cur.fetchone()
+                    if owner and self.meter_usage:
+                        cur.execute("""INSERT INTO account_usage (owner_sub, first_connected_at)
+                                       VALUES (%s, %s) ON CONFLICT (owner_sub) DO NOTHING""",
+                                    (owner[0], now))
+
+    def usage(self, owner_sub: str, allowance: int, *, consume: bool = False) -> dict | None:
+        with closing(self._connect()) as conn, conn, conn.cursor() as cur:
+            query = """SELECT u.first_connected_at, u.window_number, u.calls, b.paid_through,
+                              b.customer_id IS NOT NULL
+                       FROM account_usage AS u LEFT JOIN stripe_billing AS b USING (owner_sub)
+                       WHERE u.owner_sub=%s"""
+            cur.execute(query + (" FOR UPDATE OF u" if consume else ""), (owner_sub,))
+            row = cur.fetchone()
+            if row is None:
+                return None
+            first_connected_at, previous_window, calls, paid_through, has_billing = row
+            now = int(time.time())
+            window = max(0, (now - first_connected_at) // USAGE_PERIOD_SECONDS)
+            if window != previous_window:
+                calls = 0
+            unlimited = paid_through is not None and paid_through > now
+            allowed = unlimited or calls < allowance
+            if consume and allowed and not unlimited:
+                calls += 1
+                cur.execute("""UPDATE account_usage SET window_number=%s, calls=%s
+                               WHERE owner_sub=%s""", (window, calls, owner_sub))
+            return {
+                "allowed": allowed,
+                "unlimited": unlimited,
+                "used": calls,
+                "allowance": allowance,
+                "resets_at": first_connected_at + (window + 1) * USAGE_PERIOD_SECONDS,
+                "has_billing": has_billing,
+            }
+
+    @contextmanager
+    def billing_transaction(self):
+        with closing(self._connect()) as conn, conn, conn.cursor() as cur:
+            yield cur
+
+    def purge_revoked(self) -> None:
+        with closing(self._connect()) as conn, conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM device_credentials WHERE revoked_at <= %s",
+                        (int(time.time()) - REVOKED_RETENTION_SECONDS,))
 
     def list_owned(self, owner_sub: str) -> list[dict]:
         with closing(self._connect()) as conn:

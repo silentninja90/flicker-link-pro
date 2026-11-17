@@ -57,7 +57,7 @@ async def test():
                                   3600, email="verified@example.com", csrf=csrf)
         cookies = {"flp_session":session_token}
         x = await client.get("/oauth/authorize", params=params, cookies=cookies)
-        assert x.status_code == 200 and "Allow laptop control" in x.text
+        assert x.status_code == 200 and "Allow computer access" in x.text
         x = await client.post("/devices/pair", cookies=cookies,
                               headers={"Origin": BASE}, data={"csrf":"bad"})
         assert x.status_code == 403
