@@ -20,6 +20,7 @@ RECURRING_BILLING_NOTICE = (
     "By subscribing, you authorize Flicker Link Pro to charge US$5 today and "
     "every month until you cancel. Cancel from Manage billing on your Flicker Link Pro account page."
 )
+CHECKOUT_API_VERSION = "2026-03-25.dahlia"
 
 
 class BillingAccountError(Exception):
@@ -45,7 +46,7 @@ class StripeBilling:
         if event["livemode"] != self.live:
             raise ValueError("Wrong Stripe mode")
         if event["type"] in EVENT_TYPES:
-            customer = event["data"]["object"].get("customer")
+            customer = getattr(event["data"]["object"], "customer", None)
             if isinstance(customer, str) and customer.startswith("cus_"):
                 return customer
         return None
@@ -60,7 +61,7 @@ class StripeBilling:
             "expand": ["data.latest_invoice"],
         }).auto_paging_iter()
 
-    def checkout(self, registry, owner, email):
+    def checkout(self, registry, owner, email) -> dict[str, str]:
         with registry.billing_transaction() as cur:
             self._lock(cur, owner)
             cur.execute("SELECT 1 FROM account_usage WHERE owner_sub=%s", (owner,))
@@ -83,8 +84,8 @@ class StripeBilling:
             self._lock(cur, owner)
             if any(sub["status"] not in {"canceled", "incomplete_expired"}
                    for sub in self._subscriptions(customer)):
-                return self._portal(customer)
-            price = self.client.v1.prices.retrieve(self.price_id)
+                return {"portal_url": self._portal(customer)}
+            price = self.client.v1.prices.retrieve(self.price_id).to_dict()
             recurring = price.get("recurring") or {}
             if (not price.get("active") or price.get("livemode") != self.live
                     or price.get("currency") != "usd" or price.get("unit_amount") != 500
@@ -92,25 +93,35 @@ class StripeBilling:
                     or recurring.get("usage_type") != "licensed"):
                 raise RuntimeError("Stripe price must be an active US$5 monthly price")
             checkout = self.client.v1.checkout.sessions
+            version = {"stripe_version": CHECKOUT_API_VERSION}
+            return_url = self.return_url + "?billing=complete"
             for existing in checkout.list(params={
                 "customer": customer, "status": "open", "limit": 100,
-            }).auto_paging_iter():
+                "expand": ["data.line_items"],
+            }, options=version).auto_paging_iter():
                 if existing["mode"] != "subscription":
                     continue
-                if existing.get("metadata", {}).get("flicker_consent") == self.price_id and existing.get("url"):
-                    return existing["url"]
-                checkout.expire(existing["id"])
+                if (existing.ui_mode == "form" and existing.client_secret
+                        and existing.return_url == return_url):
+                    items = existing.line_items.data
+                    if (not existing.line_items.has_more and len(items) == 1
+                            and items[0].price.id == self.price_id and items[0].quantity == 1):
+                        return {"client_secret": existing.client_secret}
+                checkout.expire(existing.id, options=version)
             created = checkout.create(params={
+                "ui_mode": "form",
                 "mode": "subscription", "customer": customer,
                 "line_items": [{"price": self.price_id, "quantity": 1}],
-                "payment_method_types": ["card"],
-                "adaptive_pricing": {"enabled": False},
-                "custom_text": {"submit": {"message": RECURRING_BILLING_NOTICE}},
-                "metadata": {"flicker_consent": self.price_id},
-                "success_url": self.return_url + "?billing=complete",
-                "cancel_url": self.return_url,
-            })
-            return created["url"]
+                "billing_address_collection": "auto",
+                "phone_number_collection": {"enabled": False},
+                "automatic_tax": {"enabled": False},
+                "payment_method_collection": "always",
+                "submit_type": "auto",
+                "saved_payment_method_options": {"payment_method_save": "enabled"},
+                "integration_identifier": "custom_embedded_web_0001",
+                "return_url": return_url,
+            }, options=version)
+            return {"client_secret": created.client_secret}
 
     def _portal(self, customer):
         result = self.client.v1.billing_portal.sessions.create(params={
@@ -137,7 +148,7 @@ class StripeBilling:
             # cannot replace a newer payment or cancellation with stale data.
             paid_periods = []
             for subscription in self._subscriptions(customer):
-                invoice = subscription.get("latest_invoice")
+                invoice = getattr(subscription, "latest_invoice", None)
                 if subscription["status"] != "active" or not invoice or invoice["status"] != "paid":
                     continue
                 for item in subscription["items"]["data"]:
