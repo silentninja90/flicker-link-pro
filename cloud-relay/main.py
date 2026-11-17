@@ -53,6 +53,7 @@ if FREE_CALL_ALLOWANCE < 0:
 if FREE_CALL_ALLOWANCE and not os.getenv("DATABASE_URL", "").strip():
     raise ValueError("A PostgreSQL DATABASE_URL is required to enable tool call allowances")
 STRIPE_KEY = os.getenv("STRIPE_SECRET_KEY", "").strip()
+STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY", "").strip()
 STRIPE_WEBHOOK = os.getenv("STRIPE_WEBHOOK_SECRET", "").strip()
 STRIPE_PRICE = os.getenv("STRIPE_PRICE_ID", "").strip()
 BILLING = None
@@ -68,11 +69,14 @@ elif all(stripe_settings):
         raise ValueError("Billing requires the Stripe configuration and an enabled free allowance")
     if SERVER_NAME.endswith("-staging") and not stripe_test_key:
         raise ValueError("Staging billing requires a Stripe test key")
-    from stripe_billing import BillingAccountError, StripeBilling
+    from stripe_billing import BillingAccountError, RECURRING_BILLING_NOTICE, StripeBilling
 
     BILLING = StripeBilling(STRIPE_KEY, STRIPE_WEBHOOK, STRIPE_PRICE, BASE_URL)
 elif any(stripe_settings):
     logging.getLogger("flicker-link-pro").warning("Stripe billing is disabled until all Stripe settings are configured")
+CHECKOUT_AVAILABLE = BILLING is not None and STRIPE_PUBLISHABLE_KEY.startswith(
+    "pk_test_" if stripe_test_key else "pk_live_"
+)
 UNMETERED_TOOLS = {"list_devices", "get_usage_stats"}
 ACTIVE_SOCKETS = {}
 ACTIVE_DEVICE_IDS = {}
@@ -438,8 +442,10 @@ async def billing_call(operation, *args):
 @app.post("/billing/checkout")
 async def stripe_checkout(request: Request):
     user = await billing_form(request)
-    url = await billing_call(BILLING.checkout, user["sub"], user.get("email"))
-    return RedirectResponse(url, status_code=303)
+    if not CHECKOUT_AVAILABLE:
+        raise HTTPException(503, "Checkout is temporarily unavailable")
+    result = await billing_call(BILLING.checkout, user["sub"], user.get("email"))
+    return JSONResponse(result, headers={"Cache-Control": "no-store"})
 
 
 @app.post("/billing/portal")
@@ -502,7 +508,8 @@ async def devices(request: Request):
             '<input type="hidden" name="device_id" value="' + identity + '">'
             '<button type="submit">Revoke this computer</button></form>')
         device_forms.append('<li><strong>' + name + '</strong> - ' + status + actions + '</li>')
-    output = '<html><body style="font:18px sans-serif;max-width:780px;margin:55px auto">'
+    checkout_head = ""
+    output = '<body style="font:18px sans-serif;max-width:780px;margin:55px auto;padding:0 1rem">'
     output += '<h2>Flicker Link Pro - Paired Computers</h2><p>Signed in as ' + email + '</p>'
     if FREE_CALL_ALLOWANCE:
         usage = await asyncio.to_thread(account_usage, user["sub"])
@@ -516,11 +523,17 @@ async def devices(request: Request):
         if BILLING is not None and usage is not None:
             if request.query_params.get("billing") == "complete" and not usage["unlimited"]:
                 output += '<p>Stripe is confirming your payment. Refresh this page in a moment.</p>'
-            if not usage["unlimited"]:
-                output += ('<h3>Unlimited membership</h3><p>US$5 per month. Renews monthly until canceled.</p>'
-                           '<form action="/billing/checkout" method="post">'
+            if CHECKOUT_AVAILABLE and not usage["unlimited"]:
+                checkout_head = '<script defer src="https://js.stripe.com/dahlia/stripe.js"></script>'
+                checkout_key = html.escape(STRIPE_PUBLISHABLE_KEY, quote=True)
+                output += ('<h3>Unlimited membership</h3>'
+                           f'<p>{RECURRING_BILLING_NOTICE}</p>'
+                           '<form id="start-checkout" action="/billing/checkout" method="post" '
+                           f'data-stripe-key="{checkout_key}">'
                            f'<input type="hidden" name="csrf" value="{csrf}">'
-                           '<button type="submit">Continue to Stripe</button></form>')
+                           '<button type="submit">Open checkout</button></form>'
+                           '<p id="checkout-status" role="status"></p>'
+                           '<div id="checkout-form"></div>' + EMBEDDED_CHECKOUT_SCRIPT)
             if usage["has_billing"]:
                 output += ('<form action="/billing/portal" method="post">'
                            f'<input type="hidden" name="csrf" value="{csrf}">'
@@ -533,7 +546,82 @@ async def devices(request: Request):
                '<button type="submit">Pair a new computer</button></form>'
                '<p><a href="/support">Get support</a></p>'
                '<p><a href="/auth/logout">Sign out of website</a></p></body></html>')
-    return HTMLResponse(output, headers={"Cache-Control": "no-store"})
+    return HTMLResponse(
+        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        '<title>Flicker Link Pro</title>' + checkout_head + '</head>' + output,
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+EMBEDDED_CHECKOUT_SCRIPT = """
+<script>
+(() => {
+    const start = document.querySelector('#start-checkout');
+    const button = start.querySelector('button');
+    const status = document.querySelector('#checkout-status');
+    const appearance = {
+        theme: 'night',
+        labels: 'floating',
+        inputs: 'spaced',
+        variables: {
+            borderRadius: '4px',
+            colorBackground: '#ffffff',
+            colorDanger: '#df1b41',
+            colorPrimary: '#0570de',
+            colorSuccess: '#00c853',
+            colorText: '#30313d',
+            fontFamily: 'default',
+            fontSizeBase: '16px',
+            spacingUnit: '4px'
+        }
+    };
+
+    start.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (button.disabled) return;
+        button.disabled = true;
+        status.textContent = 'Loading checkout…';
+        let failureMessage = 'Checkout could not load. Please try again.';
+        let paymentForm;
+        try {
+            const stripe = Stripe(start.dataset.stripeKey);
+            const response = await fetch(start.action, {method: 'POST', body: new FormData(start)});
+            const result = await response.json();
+            if (!response.ok) {
+                if (typeof result.detail === 'string') failureMessage = result.detail;
+                throw new Error();
+            }
+            if (result.portal_url) {
+                window.location.assign(result.portal_url);
+                return;
+            }
+            if (!result.client_secret) throw new Error();
+            const checkout = stripe.initCheckoutFormSdk({clientSecret: result.client_secret, appearance});
+            paymentForm = checkout.createForm({layout: 'expanded'});
+            paymentForm.mount('#checkout-form');
+            const loaded = await checkout.loadActions();
+            if (loaded.type !== 'success') throw new Error();
+            paymentForm.on('confirm', async (confirmEvent) => {
+                status.textContent = '';
+                try {
+                    await loaded.actions.confirm({formConfirmEvent: confirmEvent});
+                } catch {
+                    status.textContent = 'Payment could not be confirmed. Please try again.';
+                }
+            });
+            start.hidden = true;
+            status.textContent = '';
+        } catch {
+            paymentForm?.destroy?.();
+            document.querySelector('#checkout-form').replaceChildren();
+            status.textContent = failureMessage;
+            button.disabled = false;
+        }
+    });
+})();
+</script>
+"""
 
 @app.post("/devices/pair")
 async def pair(request: Request):
