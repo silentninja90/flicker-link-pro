@@ -56,7 +56,8 @@ STRIPE_KEY = os.getenv("STRIPE_SECRET_KEY", "").strip()
 STRIPE_WEBHOOK = os.getenv("STRIPE_WEBHOOK_SECRET", "").strip()
 STRIPE_PRICE = os.getenv("STRIPE_PRICE_ID", "").strip()
 BILLING = None
-if any((STRIPE_KEY, STRIPE_WEBHOOK, STRIPE_PRICE)):
+stripe_settings = (STRIPE_KEY, STRIPE_WEBHOOK, STRIPE_PRICE)
+if all(stripe_settings):
     if not FREE_CALL_ALLOWANCE or not (
         STRIPE_KEY.startswith(("sk_test_", "rk_test_", "sk_live_", "rk_live_"))
         and STRIPE_WEBHOOK.startswith("whsec_") and STRIPE_PRICE.startswith("price_")
@@ -67,6 +68,8 @@ if any((STRIPE_KEY, STRIPE_WEBHOOK, STRIPE_PRICE)):
     from stripe_billing import BillingAccountError, StripeBilling
 
     BILLING = StripeBilling(STRIPE_KEY, STRIPE_WEBHOOK, STRIPE_PRICE, BASE_URL)
+elif any(stripe_settings):
+    logging.getLogger("flicker-link-pro").warning("Stripe billing is disabled until all Stripe settings are configured")
 UNMETERED_TOOLS = {"list_devices", "get_usage_stats"}
 ACTIVE_SOCKETS = {}
 ACTIVE_DEVICE_IDS = {}
