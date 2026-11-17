@@ -44,6 +44,7 @@ for tool in CATALOG:
     tool.setdefault("_meta", {})["securitySchemes"] = TOOL_SECURITY_SCHEMES
 ACTIVE_SOCKETS = {}
 ACTIVE_DEVICE_IDS = {}
+DEVICE_HEARTBEAT_INTERVAL = 120
 PENDING_CALLS = {}
 REDEEMED_CODES = {}  # one-time authorization code ID -> JWT expiration timestamp
 # Authorization codes are invalidated on every process restart.
@@ -565,10 +566,28 @@ async def device_websocket(websocket: WebSocket):
     ACTIVE_SOCKETS[sub] = websocket
     ACTIVE_DEVICE_IDS[sub] = device["id"]
     registry.touch(device["id"])
+    presence_id = None
+    presence_confirmed = False
     try:
         while True:
-            message = json.loads(await websocket.receive_text())
+            try:
+                payload = await asyncio.wait_for(websocket.receive_text(), timeout=DEVICE_HEARTBEAT_INTERVAL)
+            except asyncio.TimeoutError:
+                # A JSON-RPC ping checks the agent itself and elicits an
+                # application message from current Windows installers.
+                presence_id = "presence-" + uuid.uuid4().hex
+                await websocket.send_json({"jsonrpc": "2.0", "id": presence_id, "method": "ping"})
+                continue
+            message = json.loads(payload)
+            if not isinstance(message, dict):
+                continue
             call_id = message.get("id")
+            if presence_id is not None and call_id == presence_id:
+                presence_id = None
+                if not presence_confirmed and message.get("result") == {}:
+                    logging.getLogger("uvicorn.error").info("Device connection heartbeat confirmed")
+                    presence_confirmed = True
+                continue
             pending = PENDING_CALLS.get(call_id)
             if pending and pending[0] == sub and not pending[1].done():
                 pending[1].set_result(message.get("result"))

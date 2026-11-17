@@ -1,6 +1,7 @@
 """Offline regression checks for Flicker Link Pro relay."""
 import asyncio
 import json
+from unittest.mock import patch
 import os
 import re
 import secrets
@@ -133,6 +134,34 @@ async def test():
         finally:
             main.ACTIVE_SOCKETS.pop(account, None)
             main.ACTIVE_DEVICE_IDS.pop(account, None)
+
+        class IdleDevice:
+            def __init__(self, token):
+                self.headers = {"authorization": "Bearer " + token}
+                self.accepted = False
+                self.ping = None
+                self.receives = 0
+
+            async def accept(self):
+                self.accepted = True
+
+            async def receive_text(self):
+                self.receives += 1
+                if self.receives == 1:
+                    await asyncio.Event().wait()
+                if self.receives == 2:
+                    return json.dumps({"id": self.ping["id"], "result": {}})
+                raise main.WebSocketDisconnect()
+
+            async def send_json(self, message):
+                self.ping = message
+
+        idle_device = IdleDevice(match.group(1))
+        with patch.object(main, "DEVICE_HEARTBEAT_INTERVAL", 0.01):
+            await main.device_websocket(idle_device)
+        assert idle_device.accepted and idle_device.ping["method"] == "ping"
+        assert idle_device.receives == 3 and account not in main.ACTIVE_SOCKETS
+        assert not main.PENDING_CALLS
         x = await client.post("/mcp",headers=auth,
                               json={"jsonrpc":"2.0","id":13,"method":"tools/call",
                                     "params":{"name":"unused"}})
