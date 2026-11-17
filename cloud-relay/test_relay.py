@@ -1,5 +1,6 @@
 """Offline regression checks for Flicker Link Pro relay."""
 import asyncio
+import json
 import os
 import re
 import secrets
@@ -64,9 +65,24 @@ async def test():
         assert x.status_code == 200
         match = re.search(r"<pre[^>]*>(flk2_[A-Za-z0-9_-]+)</pre>", x.text)
         assert match and main.device_registry().authenticate(match.group(1))["sub"] == account
+        device_id = main.device_registry().authenticate(match.group(1))["id"]
         assert "--token" not in x.text
         x = await client.get("/devices", cookies=cookies)
         assert x.status_code == 200 and "Paired, waiting for the Windows app" in x.text
+        form = {"csrf": csrf, "device_id": device_id, "label": "Travel Laptop"}
+        x = await client.post("/devices/rename", cookies=cookies, headers={"Origin": BASE},
+                              data={**form, "csrf": "wrong"})
+        assert x.status_code == 403
+        other_token = main.sign("session", "another-account", BASE + "/session", 3600, csrf=csrf)
+        x = await client.post("/devices/rename", cookies={"flp_session": other_token},
+                              headers={"Origin": BASE}, data=form)
+        assert x.status_code == 404
+        x = await client.post("/devices/rename", cookies=cookies, headers={"Origin": BASE},
+                              data={**form, "label": "   "})
+        assert x.status_code == 400
+        x = await client.post("/devices/rename", cookies=cookies, headers={"Origin": BASE}, data=form)
+        assert x.status_code == 303
+        assert main.device_registry().authenticate(match.group(1))["label"] == "Travel Laptop"
         code = main.sign("auth_code", account, BASE + "/authcode", 90,
                          client_hash=main.digest(cid), redirect_uri=callback,
                          challenge=main.digest(verifier), resource=RESOURCE, scope="laptop:control")
@@ -93,6 +109,30 @@ async def test():
         expected_auth = [{"type": "oauth2", "scopes": ["laptop:control"]}]
         assert all(tool["securitySchemes"] == expected_auth for tool in catalog)
         assert all(tool["_meta"]["securitySchemes"] == expected_auth for tool in catalog)
+        x = await client.post("/mcp", headers=auth, json={
+            "jsonrpc": "2.0", "id": 15, "method": "tools/call", "params": {"name": "list_devices"}
+        })
+        assert x.json()["result"]["structuredContent"]["devices"][0]["label"] == "Travel Laptop"
+
+        class Desktop:
+            async def send_text(self, data):
+                call_id = json.loads(data)["id"]
+                main.PENDING_CALLS[call_id][1].set_result({
+                    "structuredContent": {"hostname": "DESKTOP-TEST", "platform": "win32"}
+                })
+
+        main.ACTIVE_SOCKETS[account] = Desktop()
+        main.ACTIVE_DEVICE_IDS[account] = device_id
+        try:
+            x = await client.post("/mcp", headers=auth, json={
+                "jsonrpc": "2.0", "id": 16, "method": "tools/call", "params": {"name": "who_am_i"}
+            })
+            identity = x.json()["result"]["structuredContent"]
+            assert identity["device_name"] == "Travel Laptop"
+            assert identity["hostname"] == "DESKTOP-TEST"
+        finally:
+            main.ACTIVE_SOCKETS.pop(account, None)
+            main.ACTIVE_DEVICE_IDS.pop(account, None)
         x = await client.post("/mcp",headers=auth,
                               json={"jsonrpc":"2.0","id":13,"method":"tools/call",
                                     "params":{"name":"unused"}})

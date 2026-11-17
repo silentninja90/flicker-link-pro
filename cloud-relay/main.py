@@ -341,6 +341,11 @@ async def devices(request: Request):
         else:
             status = "Paired, waiting for the Windows app"
         actions = "" if item["revoked_at"] is not None else (
+            '<form action="/devices/rename" method="post">'
+            '<input type="hidden" name="csrf" value="' + csrf + '">'
+            '<input type="hidden" name="device_id" value="' + identity + '">'
+            '<label>Computer name <input name="label" maxlength="80" required value="' + name + '"></label> '
+            '<button type="submit">Save name</button></form>'
             '<form action="/devices/revoke" method="post">'
             '<input type="hidden" name="csrf" value="' + csrf + '">'
             '<input type="hidden" name="device_id" value="' + identity + '">'
@@ -379,6 +384,24 @@ async def pair(request: Request):
         + html.escape(created["token"]) +
         '</pre><p><a href="/devices">Back to paired computers</a></p></body></html>',
         headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
+
+@app.post("/devices/rename")
+async def rename_device(request: Request):
+    check_origin(request)
+    user = session(request)
+    if not user:
+        raise HTTPException(401, "Sign in first")
+    form = await request.form()
+    if not secrets.compare_digest(str(form.get("csrf", "")), user["csrf"]):
+        raise HTTPException(403, "Invalid CSRF token")
+    label = str(form.get("label", "")).strip()
+    if not label or len(label) > 80 or not label.isprintable():
+        raise HTTPException(400, "Enter a computer name between 1 and 80 characters")
+    device_id = str(form.get("device_id", ""))
+    if not await asyncio.to_thread(lambda: device_registry().rename_owned(user["sub"], device_id, label)):
+        raise HTTPException(404, "Device not found or already revoked")
+    return RedirectResponse("/devices", status_code=303)
+
 
 @app.post("/devices/revoke")
 async def revoke_device(request: Request):
@@ -629,6 +652,16 @@ async def mcp(request: Request):
         forwarded["_flicker_deadline_unix"] = time.time() + 40.0
         await ws.send_text(json.dumps(forwarded))
         result = await asyncio.wait_for(future, timeout=45.0)
+        if (isinstance(params, dict) and params.get("name") == "who_am_i"
+                and isinstance(result, dict) and isinstance(result.get("structuredContent"), dict)
+                and not result.get("isError")):
+            devices = await asyncio.to_thread(lambda: device_registry().list_owned(owner))
+            label = next((d["label"] for d in devices
+                          if d["id"] == active_id and d["revoked_at"] is None), None)
+            if label is not None:
+                identity = {**result["structuredContent"], "device_name": label}
+                result = {**result, "structuredContent": identity,
+                          "content": [{"type": "text", "text": json.dumps(identity)}]}
         return {"jsonrpc": "2.0", "id": req_id, "result": result}
     except (asyncio.TimeoutError, WebSocketDisconnect, RuntimeError):
         return {"jsonrpc": "2.0", "id": req_id,

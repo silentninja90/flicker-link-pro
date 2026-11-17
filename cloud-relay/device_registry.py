@@ -116,6 +116,14 @@ class DeviceRegistry:
                 (owner_sub,)).fetchall()
         return [dict(row) for row in rows]
 
+    def rename_owned(self, owner_sub: str, device_id: str, label: str) -> bool:
+        with self._connect() as connection:
+            cursor = connection.execute(
+                """UPDATE device_credentials SET label=?
+                   WHERE owner_sub=? AND id=? AND revoked_at IS NULL""",
+                (label, owner_sub, device_id))
+            return cursor.rowcount == 1
+
     def revoke_owned(self, owner_sub: str, device_id: str) -> bool:
         with self._connect() as connection:
             cursor = connection.execute(

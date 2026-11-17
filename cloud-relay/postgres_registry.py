@@ -114,6 +114,13 @@ class PostgresDeviceRegistry:
         fields = ("id", "label", "created_at", "last_seen_at", "revoked_at")
         return [dict(zip(fields, row)) for row in rows]
 
+    def rename_owned(self, owner_sub: str, device_id: str, label: str) -> bool:
+        with closing(self._connect()) as conn, conn, conn.cursor() as cur:
+            cur.execute("""UPDATE device_credentials SET label=%s
+                           WHERE owner_sub=%s AND id=%s AND revoked_at IS NULL""",
+                        (label, owner_sub, device_id))
+            return cur.rowcount == 1
+
     def revoke_owned(self, owner_sub: str, device_id: str) -> bool:
         with closing(self._connect()) as conn:
             with conn:

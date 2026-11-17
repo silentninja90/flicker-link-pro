@@ -637,7 +637,7 @@
   },
   {
     "name": "who_am_i",
-    "description": "Flicker Link Pro local tool: who am i",
+    "description": "Identify the connected Windows computer. Use its device_name when present and include the Windows hostname when helpful.",
     "inputSchema": {
       "type": "object",
       "properties": {}
