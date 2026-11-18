@@ -10,19 +10,21 @@
   "extensions": {
     "com.openai": {
       "interface": {
-        "capabilities": ["Control a Windows computer"],
+        "capabilities": [
+          "Control a Windows computer"
+        ],
         "category": "Productivity",
         "composerIcon": "./assets/flicker-link.png",
         "defaultPrompt": [
-          "Identify my paired Windows computer.",
-          "Check the system health of my paired computer.",
-          "List files in a folder I specify on my paired computer."
+          "Find and summarize a report in a folder I specify on my computer.",
+          "Check my Windows computer's health and explain the results.",
+          "Create a ZIP backup of the project folder I specify."
         ],
         "developerName": "Eric Williams",
         "displayName": "Flicker Link Pro",
         "logo": "./assets/flicker-link.png",
-        "longDescription": "Connect one paired Windows computer to ChatGPT using the Flicker Link Pro Windows app and authenticated cloud relay. The 66 tools can report system details, search and read or write files available to the signed-in Windows account, run commands, manage processes and Docker, control desktop input, query databases, create backups, and transfer files to HTTPS destinations you choose. The Windows app asks once for full access at the first sensitive operation; that approval stays saved across app restarts and clears when you sign out of the Windows app or revoke the pairing. ChatGPT may separately ask you to confirm irreversible actions. Use only with computers and data you are authorized to access. Some tools require WSL, Docker, PostgreSQL, or an interactive desktop.",
-        "shortDescription": "Control your paired Windows PC",
+        "longDescription": "Connect ChatGPT to one Windows computer you own or are authorized to use. Install and open the Flicker Link Pro Windows companion, pair your computer, then ask ChatGPT to find and read files in folders you choose, create documents and backups, inspect system status, run commands, or work with desktop apps. The 66 tools cover file operations, diagnostics, process and Docker management, desktop controls, database queries, and HTTPS transfers. The companion stores pairing credentials in Windows Credential Manager and asks for local approval before sensitive tools are enabled; that approval remains across app restarts and clears when you sign out or revoke the pairing. ChatGPT may also ask you to confirm certain actions. Tool results, including file contents you ask it to read, are sent to ChatGPT through the service. Stop the companion to disconnect. Use only with computers and data you are authorized to access. Some features require WSL, Docker, PostgreSQL, or an interactive desktop.",
+        "shortDescription": "Use ChatGPT with your PC",
         "websiteURL": "https://flicker-link-pro.onrender.com/",
         "supportURL": "https://flicker-link-pro.onrender.com/support",
         "privacyPolicyURL": "https://flicker-link-pro.onrender.com/privacy",
@@ -88,7 +90,7 @@
       },
       "publication": {
         "countries": [],
-        "release_notes": "Adds privacy and terms pages, listing URLs, and explicit safety annotations for all 66 tools."
+        "release_notes": "Adds clearer titles for all 66 tools, task-focused setup prompts and listing guidance, and transparent computer-access and data-flow details."
       },
       "onboardingSkill": "./skills/connection-and-security/SKILL.md"
     }

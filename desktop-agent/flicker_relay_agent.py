@@ -7,11 +7,13 @@ from __future__ import annotations
 import argparse
 import asyncio
 from contextlib import nullcontext
+from datetime import datetime
 import errno
 import getpass
 import inspect
 import json
 import os
+import platform
 from pathlib import Path
 import re
 import sys
@@ -34,6 +36,11 @@ STAGING_CREDENTIAL_TARGET = "FlickerLinkPro2/StagingDevicePairing"
 DEFAULT_CONSENT_TARGET = "FlickerLinkPro2/DeviceConsent"
 STAGING_CONSENT_TARGET = "FlickerLinkPro2/StagingDeviceConsent"
 CATALOG_NAMES = frozenset(tool["name"] for tool in CATALOG)
+
+
+def console_log(icon: str, message: str) -> None:
+    """Write compact timestamped status lines for the Windows companion."""
+    print(f"[{datetime.now().astimezone().strftime('%H:%M:%S')}] {icon}  {message}", flush=True)
 
 
 def _websocket_is_open(ws) -> bool:
@@ -129,12 +136,10 @@ def read_masked_pairing(prompt: str, read_key=None, output=None) -> str:
 
 
 def prompt_pairing(server: str):
-    print("\nFlicker Link Pro 2 - computer pairing")
-    print("Opening the secure device-pairing page in your browser.")
-    print("1. Sign in with Google.")
-    print("2. Choose Pair a new computer.")
-    print("3. Copy ONLY the token beginning with flk2_ (after --token).")
-    print("4. Paste it below. * appears for each character; Backspace erases.")
+    console_log("🔐", "Pair this Windows computer")
+    print("       1. Sign in to Flicker Link Pro in the browser.")
+    print("       2. Create a pairing token and paste it below.")
+    print("       3. The token is masked as you type; press Enter to continue.")
     try:
         webbrowser.open(server.rstrip("/") + "/devices")
     except Exception:
@@ -165,7 +170,7 @@ def resolve_pairing(server: str | None, token: str | None,
         _save_for(selected, base, token)
         return base, token
     if saved and saved[0].rstrip("/") == base:
-        print("[OK] Saved device pairing loaded securely from Windows.")
+        console_log("🔒", "Saved computer pairing loaded securely from Windows.")
         return base, saved[1]
     new_server, new_token = prompt_pairing(base)
     _save_for(selected, new_server, new_token)
@@ -189,8 +194,9 @@ async def run_relay(server_url: str, token: str,
     direct_staging = (server_url.rstrip("/") == STAGING_SERVER and
                       "proxy" in inspect.signature(websockets.connect).parameters)
     connection_options = {"proxy": None} if direct_staging else {}
-    print("Flicker Link Pro | Tools loaded:", len(CATALOG))
-    print("Connecting securely to", base)
+    console_log("🖥️", "Computer: " + platform.node())
+    console_log("🧰", f"Ready to connect · {len(CATALOG)} tools available")
+    console_log("🌐", "Connecting securely to " + base)
 
     while True:
         try:
@@ -198,7 +204,7 @@ async def run_relay(server_url: str, token: str,
                 endpoint, max_size=15 * 1024 * 1024,
                 ping_interval=20, ping_timeout=20, **headers, **connection_options
             ) as ws:
-                print("[CONNECTED] Saved pairing accepted. Ready for ChatGPT commands.")
+                console_log("✅", "Computer connected · Ready to use in ChatGPT")
                 while True:
                     request = json.loads(await ws.recv())
                     if request.get("method") == "tools/list":
@@ -266,17 +272,17 @@ async def run_relay(server_url: str, token: str,
             status = getattr(response, "status_code", getattr(exc, "status_code", None))
             if status in (401, 403):
                 if _server_confirms_revoked(server_url, token):
-                    print("[PAIRING INVALID] Device authorization expired or revoked.")
-                    print("Sign in to staging and generate a fresh device token to retry.")
+                    console_log("⛔", "Computer pairing expired or was revoked.")
+                    print("       Sign in to your account and create a new pairing token.")
                     return False
-                print("[RETRY] Pairing status could not be confirmed; keeping saved credentials.")
-            print("[RETRY] Relay unavailable; retrying in 5 seconds.")
+                console_log("⚠️", "Could not confirm pairing status; saved pairing was kept.")
+            console_log("🔄", "Relay unavailable · Retrying in 5 seconds")
             await asyncio.sleep(5)
         except (websockets.exceptions.ConnectionClosed, ConnectionRefusedError, OSError):
-            print("[DISCONNECTED] Retrying in 5 seconds.")
+            console_log("⚠️", "Connection interrupted · Retrying in 5 seconds")
             await asyncio.sleep(5)
         except Exception as exc:
-            print("[ERROR]", type(exc).__name__, "retrying in 5 seconds.")
+            console_log("⚠️", type(exc).__name__ + " · Retrying in 5 seconds")
             await asyncio.sleep(5)
 
 def logout_pairing(profile: str | None = None) -> bool:

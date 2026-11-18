@@ -23,7 +23,8 @@
       "readOnlyHint": false,
       "destructiveHint": true,
       "openWorldHint": true
-    }
+    },
+    "title": "Run a PostgreSQL query"
   },
   {
     "name": "read_application_logs",
@@ -49,7 +50,8 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "Read application logs"
   },
   {
     "name": "create_project_backup",
@@ -75,7 +77,8 @@
       "readOnlyHint": false,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "Back up a project folder"
   },
   {
     "name": "focus_and_type",
@@ -104,7 +107,8 @@
       "readOnlyHint": false,
       "destructiveHint": true,
       "openWorldHint": true
-    }
+    },
+    "title": "Focus a window and type"
   },
   {
     "name": "mouse_move",
@@ -132,7 +136,8 @@
       "readOnlyHint": false,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "Move the pointer"
   },
   {
     "name": "keyboard_type",
@@ -156,7 +161,8 @@
       "readOnlyHint": false,
       "destructiveHint": true,
       "openWorldHint": true
-    }
+    },
+    "title": "Type text"
   },
   {
     "name": "keyboard_press",
@@ -179,7 +185,8 @@
       "readOnlyHint": false,
       "destructiveHint": true,
       "openWorldHint": true
-    }
+    },
+    "title": "Press keyboard keys"
   },
   {
     "name": "window_list",
@@ -192,7 +199,8 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "List open windows"
   },
   {
     "name": "window_action",
@@ -223,7 +231,8 @@
       "readOnlyHint": false,
       "destructiveHint": true,
       "openWorldHint": true
-    }
+    },
+    "title": "Control an open window"
   },
   {
     "name": "system_resources",
@@ -236,7 +245,8 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "Check system resources"
   },
   {
     "name": "process_list",
@@ -249,7 +259,8 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "List running processes"
   },
   {
     "name": "process_kill",
@@ -269,7 +280,8 @@
       "readOnlyHint": false,
       "destructiveHint": true,
       "openWorldHint": false
-    }
+    },
+    "title": "Stop a process"
   },
   {
     "name": "docker_containers",
@@ -282,7 +294,8 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "List Docker containers"
   },
   {
     "name": "docker_action",
@@ -312,7 +325,8 @@
       "readOnlyHint": false,
       "destructiveHint": true,
       "openWorldHint": false
-    }
+    },
+    "title": "Manage a Docker container"
   },
   {
     "name": "network_info",
@@ -325,7 +339,8 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "View network details"
   },
   {
     "name": "list_drives",
@@ -338,7 +353,8 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "List available drives"
   },
   {
     "name": "path_info",
@@ -358,7 +374,8 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "Inspect a file path"
   },
   {
     "name": "browse_directory",
@@ -378,7 +395,8 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "Browse a folder"
   },
   {
     "name": "search_filename",
@@ -402,7 +420,8 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "Find a file by name"
   },
   {
     "name": "read_file_text",
@@ -422,7 +441,8 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "Read a text file"
   },
   {
     "name": "write_file_text",
@@ -446,7 +466,8 @@
       "readOnlyHint": false,
       "destructiveHint": true,
       "openWorldHint": false
-    }
+    },
+    "title": "Write a text file"
   },
   {
     "name": "read_file_base64_chunk",
@@ -474,7 +495,8 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "Read a binary file chunk"
   },
   {
     "name": "write_file_base64_chunk",
@@ -502,7 +524,8 @@
       "readOnlyHint": false,
       "destructiveHint": true,
       "openWorldHint": false
-    }
+    },
+    "title": "Write a binary file chunk"
   },
   {
     "name": "create_directory",
@@ -522,7 +545,8 @@
       "readOnlyHint": false,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "Create a folder"
   },
   {
     "name": "copy_item",
@@ -546,7 +570,8 @@
       "readOnlyHint": false,
       "destructiveHint": true,
       "openWorldHint": false
-    }
+    },
+    "title": "Copy a file or folder"
   },
   {
     "name": "move_item",
@@ -570,7 +595,8 @@
       "readOnlyHint": false,
       "destructiveHint": true,
       "openWorldHint": false
-    }
+    },
+    "title": "Move a file or folder"
   },
   {
     "name": "delete_item",
@@ -590,7 +616,8 @@
       "readOnlyHint": false,
       "destructiveHint": true,
       "openWorldHint": false
-    }
+    },
+    "title": "Delete a file or folder"
   },
   {
     "name": "checksum_sha256",
@@ -610,7 +637,8 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "Calculate a file SHA-256"
   },
   {
     "name": "create_zip",
@@ -634,7 +662,8 @@
       "readOnlyHint": false,
       "destructiveHint": true,
       "openWorldHint": false
-    }
+    },
+    "title": "Create a ZIP archive"
   },
   {
     "name": "unzip_to_folder",
@@ -658,7 +687,8 @@
       "readOnlyHint": false,
       "destructiveHint": true,
       "openWorldHint": false
-    }
+    },
+    "title": "Extract a ZIP archive"
   },
   {
     "name": "download_file_https",
@@ -682,7 +712,8 @@
       "readOnlyHint": false,
       "destructiveHint": true,
       "openWorldHint": true
-    }
+    },
+    "title": "Download an HTTPS file"
   },
   {
     "name": "upload_file_https_put",
@@ -706,7 +737,8 @@
       "readOnlyHint": false,
       "destructiveHint": true,
       "openWorldHint": true
-    }
+    },
+    "title": "Upload a file to HTTPS"
   },
   {
     "name": "screenshot",
@@ -719,7 +751,8 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "Capture the computer screen"
   },
   {
     "name": "click",
@@ -743,7 +776,8 @@
       "readOnlyHint": false,
       "destructiveHint": true,
       "openWorldHint": true
-    }
+    },
+    "title": "Click on the screen"
   },
   {
     "name": "run_code",
@@ -766,7 +800,8 @@
       "readOnlyHint": false,
       "destructiveHint": true,
       "openWorldHint": true
-    }
+    },
+    "title": "Run a Windows command"
   },
   {
     "name": "run_wsl",
@@ -789,7 +824,8 @@
       "readOnlyHint": false,
       "destructiveHint": true,
       "openWorldHint": true
-    }
+    },
+    "title": "Run a WSL command"
   },
   {
     "name": "get_config",
@@ -802,7 +838,8 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "View app settings"
   },
   {
     "name": "set_config",
@@ -836,7 +873,8 @@
       "readOnlyHint": false,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "Update app settings"
   },
   {
     "name": "who_am_i",
@@ -849,7 +887,8 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "Identify this computer"
   },
   {
     "name": "get_file_info",
@@ -870,7 +909,8 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "Get file details"
   },
   {
     "name": "list_directory",
@@ -899,7 +939,8 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "List folder contents"
   },
   {
     "name": "read_file",
@@ -932,7 +973,8 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "Read file data"
   },
   {
     "name": "read_multiple_files",
@@ -968,7 +1010,8 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "Read multiple files"
   },
   {
     "name": "write_file",
@@ -1005,7 +1048,8 @@
       "readOnlyHint": false,
       "destructiveHint": true,
       "openWorldHint": false
-    }
+    },
+    "title": "Write file data"
   },
   {
     "name": "edit_block",
@@ -1040,7 +1084,8 @@
       "readOnlyHint": false,
       "destructiveHint": true,
       "openWorldHint": false
-    }
+    },
+    "title": "Replace text in a file"
   },
   {
     "name": "write_pdf",
@@ -1074,7 +1119,8 @@
       "readOnlyHint": false,
       "destructiveHint": true,
       "openWorldHint": false
-    }
+    },
+    "title": "Create a PDF"
   },
   {
     "name": "move_file",
@@ -1104,7 +1150,8 @@
       "readOnlyHint": false,
       "destructiveHint": true,
       "openWorldHint": false
-    }
+    },
+    "title": "Move a file"
   },
   {
     "name": "list_devices",
@@ -1117,7 +1164,8 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "List paired computers"
   },
   {
     "name": "list_processes",
@@ -1130,7 +1178,8 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "Get process details"
   },
   {
     "name": "start_process",
@@ -1155,7 +1204,8 @@
       "readOnlyHint": false,
       "destructiveHint": true,
       "openWorldHint": true
-    }
+    },
+    "title": "Start a process"
   },
   {
     "name": "interact_with_process",
@@ -1188,7 +1238,8 @@
       "readOnlyHint": false,
       "destructiveHint": true,
       "openWorldHint": true
-    }
+    },
+    "title": "Interact with a process"
   },
   {
     "name": "list_sessions",
@@ -1201,7 +1252,8 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "List managed sessions"
   },
   {
     "name": "force_terminate",
@@ -1231,7 +1283,8 @@
       "readOnlyHint": false,
       "destructiveHint": true,
       "openWorldHint": false
-    }
+    },
+    "title": "Force stop a process"
   },
   {
     "name": "kill_process",
@@ -1257,7 +1310,8 @@
       "readOnlyHint": false,
       "destructiveHint": true,
       "openWorldHint": false
-    }
+    },
+    "title": "Terminate a process"
   },
   {
     "name": "shutdown",
@@ -1279,7 +1333,8 @@
       "readOnlyHint": false,
       "destructiveHint": true,
       "openWorldHint": false
-    }
+    },
+    "title": "Stop a managed app session"
   },
   {
     "name": "start_search",
@@ -1316,7 +1371,8 @@
       "readOnlyHint": false,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "Search computer files"
   },
   {
     "name": "get_more_search_results",
@@ -1345,7 +1401,8 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "Get more search results"
   },
   {
     "name": "list_searches",
@@ -1358,7 +1415,8 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "List active searches"
   },
   {
     "name": "stop_search",
@@ -1379,7 +1437,8 @@
       "readOnlyHint": false,
       "destructiveHint": true,
       "openWorldHint": false
-    }
+    },
+    "title": "Stop a file search"
   },
   {
     "name": "get_recent_tool_calls",
@@ -1401,7 +1460,8 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "View recent tool calls"
   },
   {
     "name": "list_remote_tool_calls",
@@ -1423,7 +1483,8 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "List remote tool calls"
   },
   {
     "name": "get_tool_result",
@@ -1452,7 +1513,8 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "View tool call details"
   },
   {
     "name": "review_device_call",
@@ -1473,7 +1535,8 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "Review a computer action"
   },
   {
     "name": "keep_tool_result",
@@ -1495,7 +1558,8 @@
       "readOnlyHint": false,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "Save a tool result"
   },
   {
     "name": "get_usage_stats",
@@ -1508,7 +1572,8 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "View usage summary"
   },
   {
     "name": "track_ui_event",
@@ -1533,6 +1598,7 @@
       "readOnlyHint": false,
       "destructiveHint": false,
       "openWorldHint": false
-    }
+    },
+    "title": "Record interface activity"
   }
 ]
