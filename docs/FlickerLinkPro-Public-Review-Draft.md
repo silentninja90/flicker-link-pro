@@ -46,6 +46,12 @@ sample data. These cases are drafts and must be run on the exact release build.
 
 ## Release evidence still needed
 
+- A local submission draft ZIP was assembled at
+  `artifacts/FlickerLinkPro-2.2.0-submission-draft.zip`. It includes the
+  production MCP configuration, icon, nine skills, and five positive/three
+  negative review cases. The public privacy and terms routes are not deployed,
+  and the required demo recording URL is absent, so this ZIP is not ready to
+  submit.
 - Review the release catalog's explicit Boolean annotations for all 66 tools.
   They are now present in the unreleased production branch. Confirm the
   annotations and descriptions against behavior and verify that irreversible

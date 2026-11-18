@@ -15,6 +15,9 @@ secrets/
 *.log
 logs/
 
+# Local release artifacts
+artifacts/
+
 # OS
 .DS_Store
 Thumbs.db
