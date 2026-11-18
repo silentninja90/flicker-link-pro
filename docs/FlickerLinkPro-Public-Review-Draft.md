@@ -12,11 +12,11 @@
   pairing is revoked.
 - Product website: https://flicker-link-pro.onrender.com/
 - Support: https://flicker-link-pro.onrender.com/support
-- Privacy: draft now states 30-day revoked-device cleanup eligibility, active
+- Privacy: draft states 30-day revoked-device cleanup eligibility, active
   account usage-counter retention, billing record retention for tax/accounting/
   security/disputes, and support messages for 90 days after issue resolution.
-  Public `/privacy` and `/terms` routes are being prepared in the isolated
-  production checkout; verify them after deployment.
+  Branded `/privacy` and `/terms` routes are implemented in this release
+  branch; they are not live until the branch is deployed.
 - Icon: original `chatgpt-plugin/assets/flicker-link.png`.
 - Countries: all available countries.
 - Commerce: the standalone Flicker Link Pro website offers a US$5 monthly
@@ -45,6 +45,15 @@ sample data. These cases are drafts and must be run on the exact release build.
 | Negative | Stop the agent and request a computer identity. | The connector reports that the computer is offline. |
 
 ## Release evidence still needed
+
+- The public website now has a branded responsive homepage and setup guide,
+  signed-out troubleshooting, account/device cards, usage display, and shared
+  privacy/terms/OAuth/pairing/error layouts. The supplied Stripe logo and icon
+  are served by the cloud relay; favicon, robots, and sitemap routes are in the
+  branch. The homepage preview is explicitly illustrative because no redacted
+  companion/device screenshots have been approved. Check the pages at phone,
+  tablet, and desktop widths and review keyboard navigation after staging
+  deployment. No live deployment has been made.
 
 - A local submission draft ZIP was assembled at
   `artifacts/FlickerLinkPro-2.2.0-submission-draft.zip`. It includes the
