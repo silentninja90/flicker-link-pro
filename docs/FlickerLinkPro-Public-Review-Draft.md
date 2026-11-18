@@ -49,8 +49,12 @@ sample data. These cases are drafts and must be run on the exact release build.
 - Review the release catalog's explicit Boolean annotations for all 66 tools.
   They are now present in the unreleased production branch. Confirm the
   annotations and descriptions against behavior and verify that irreversible
-  actions still receive the client-required human confirmation. Disclose the
-  Windows agent dependency and broad system access to reviewers.
+  actions still receive the client-required human confirmation. The schema
+  review found that `shutdown` currently terminates a managed process session,
+  not Windows; the remaining audit and UI-event tools expose limited local
+  metadata rather than cloud-wide records. Decide whether those behaviors meet
+  the intended listing before submission. Disclose the Windows agent dependency
+  and broad system access to reviewers.
 - Complete the exact domain-verification challenge on the Render production
   MCP hostname and verify the stable production URL.
 - Verify Eric Williams as the individual publisher on the OpenAI Platform.
@@ -76,6 +80,9 @@ sample data. These cases are drafts and must be run on the exact release build.
   so the production installer has not been built. The existing preview is
   unsigned. After signing, verify install, first sensitive-action approval,
   restart reset, sign-out, and uninstall on a clean Windows computer.
+- The package metadata has no reviewer demo recording URL. Record a short
+  reviewer-accessible walkthrough only after running the five positive and
+  three negative cases on the exact submitted server and Windows build.
 - Build and validate the public ZIP, connect the production MCP server, resolve
   the package and tool scans, and have the publisher complete the attestations
   for review.

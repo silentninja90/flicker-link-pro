@@ -1,7 +1,7 @@
 [
   {
     "name": "db_execute",
-    "description": "Execute SQL against a PostgreSQL connection string.",
+    "description": "Run the supplied SQL on the PostgreSQL database identified by connection_string. SQL may read or modify data and may contain multiple statements; use only databases you are authorized to administer.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -27,7 +27,7 @@
   },
   {
     "name": "read_application_logs",
-    "description": "Read the last lines of an application log file.",
+    "description": "Read the last tail_lines of a UTF-8 log at log_path. Log lines may contain private data; this does not alter the file.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -53,7 +53,7 @@
   },
   {
     "name": "create_project_backup",
-    "description": "Create a timestamped ZIP backup of a project folder.",
+    "description": "Create a timestamped ZIP containing files under source_folder and save it in backup_vault. The archive may include sensitive project files and consumes disk space.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -79,7 +79,7 @@
   },
   {
     "name": "focus_and_type",
-    "description": "Focus a desktop window and send a key sequence.",
+    "description": "Find the desktop window whose title contains window_title, activate it, then send keys_to_send as a key combination. This can trigger actions in the focused app; it does not type text.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -108,7 +108,7 @@
   },
   {
     "name": "mouse_move",
-    "description": "Move the mouse pointer to screen coordinates.",
+    "description": "Move the Windows pointer to screen coordinates x,y over duration seconds. It does not click or type.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -136,7 +136,7 @@
   },
   {
     "name": "keyboard_type",
-    "description": "Type text into the active desktop control.",
+    "description": "Type text into the currently focused Windows control, optionally using interval seconds between characters. The focused app may process or submit that text.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -160,7 +160,7 @@
   },
   {
     "name": "keyboard_press",
-    "description": "Press one key or send a key combination.",
+    "description": "Send the listed keys as a key combination to the currently focused Windows app. The combination may trigger app actions or shortcuts.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -183,7 +183,7 @@
   },
   {
     "name": "window_list",
-    "description": "List visible desktop windows and their bounds.",
+    "description": "List visible desktop windows with titles and screen bounds. It does not change window state.",
     "inputSchema": {
       "type": "object",
       "properties": {}
@@ -196,7 +196,7 @@
   },
   {
     "name": "window_action",
-    "description": "Activate, minimize, maximize, or close a desktop window.",
+    "description": "Activate, minimize, maximize, or close the matching desktop window. Closing may discard unsaved work; verify the window title and action.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -227,7 +227,7 @@
   },
   {
     "name": "system_resources",
-    "description": "Return CPU, memory, and disk usage information.",
+    "description": "Return a CPU sample, memory usage, and disk usage for the connected Windows computer. This is a point-in-time diagnostic and makes no changes.",
     "inputSchema": {
       "type": "object",
       "properties": {}
@@ -240,7 +240,7 @@
   },
   {
     "name": "process_list",
-    "description": "List the top processes by CPU usage.",
+    "description": "List Windows processes with available PID, name, user, status, CPU, and memory details. Results are not sorted by CPU and may include processes visible to the signed-in Windows account.",
     "inputSchema": {
       "type": "object",
       "properties": {}
@@ -253,7 +253,7 @@
   },
   {
     "name": "process_kill",
-    "description": "Terminate a process by PID.",
+    "description": "Terminate the process with the supplied PID. This is not limited to Flicker Link Pro sessions and may stop unrelated software or lose unsaved work; verify the PID.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -273,7 +273,7 @@
   },
   {
     "name": "docker_containers",
-    "description": "List all Docker containers and their status.",
+    "description": "List Docker containers, including stopped containers, when Docker is available. This does not change container state.",
     "inputSchema": {
       "type": "object",
       "properties": {}
@@ -286,7 +286,7 @@
   },
   {
     "name": "docker_action",
-    "description": "Start, stop, restart, or read logs for a Docker container.",
+    "description": "Run the selected start, stop, restart, or logs action for container_name_or_id. Container actions change state; logs only reads output. Requires Docker CLI and an available Docker engine.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -316,7 +316,7 @@
   },
   {
     "name": "network_info",
-    "description": "Return adapter and active-connection information on Windows.",
+    "description": "Return network-interface addresses on Windows. This does not enumerate active socket connections or verify internet access.",
     "inputSchema": {
       "type": "object",
       "properties": {}
@@ -329,7 +329,7 @@
   },
   {
     "name": "list_drives",
-    "description": "List available Windows drive roots.",
+    "description": "List drive roots available to the connected Windows account. It does not list their contents.",
     "inputSchema": {
       "type": "object",
       "properties": {}
@@ -342,7 +342,7 @@
   },
   {
     "name": "path_info",
-    "description": "Inspect whether a path exists and its basic metadata.",
+    "description": "Inspect an existing path and return whether it is a file or directory, its size, and modification time. A missing or inaccessible path returns an error.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -362,7 +362,7 @@
   },
   {
     "name": "browse_directory",
-    "description": "List the immediate contents of a directory.",
+    "description": "List the immediate entries in path, including names, paths, and file sizes. It does not recurse into subfolders.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -382,7 +382,7 @@
   },
   {
     "name": "search_filename",
-    "description": "Search recursively for an exact filename under a root folder.",
+    "description": "Search recursively beneath root_dir for files whose name exactly matches filename. The result contains matching paths; large roots may take time.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -406,7 +406,7 @@
   },
   {
     "name": "read_file_text",
-    "description": "Read a UTF-8 text file.",
+    "description": "Read the complete file at path as UTF-8 text, replacing undecodable bytes. The returned content may contain private information.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -426,7 +426,7 @@
   },
   {
     "name": "write_file_text",
-    "description": "Write UTF-8 text to a file, replacing its contents.",
+    "description": "Write content as UTF-8 to path, creating parent folders and replacing any existing file contents. This overwrites the target.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -450,7 +450,7 @@
   },
   {
     "name": "read_file_base64_chunk",
-    "description": "Read a byte range from a file as base64.",
+    "description": "Read length bytes starting at offset from path and return them as Base64. Use chunks for binary or large files; the file is not changed.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -478,7 +478,7 @@
   },
   {
     "name": "write_file_base64_chunk",
-    "description": "Write base64-decoded bytes to a file.",
+    "description": "Decode base64_data and write it to path. By default this replaces the file; set append=true to append bytes. Parent folders are created if needed.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -506,7 +506,7 @@
   },
   {
     "name": "create_directory",
-    "description": "Create a directory and its parents if needed.",
+    "description": "Create path and any missing parent folders. Existing directories are left unchanged.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -526,7 +526,7 @@
   },
   {
     "name": "copy_item",
-    "description": "Copy a file or directory to a destination.",
+    "description": "Copy the file or directory at src to dst. Copying a file can replace an existing destination file; copying a directory fails if the destination directory already exists.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -550,7 +550,7 @@
   },
   {
     "name": "move_item",
-    "description": "Move a file or directory to a destination.",
+    "description": "Move the file or directory at src to dst using Windows filesystem move behavior. This changes the source location and may replace a destination file; check both paths first.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -574,7 +574,7 @@
   },
   {
     "name": "delete_item",
-    "description": "Delete a file or directory.",
+    "description": "Permanently delete the file at path or recursively remove a directory and its contents. This does not use the Recycle Bin and cannot be undone by Flicker Link Pro.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -594,7 +594,7 @@
   },
   {
     "name": "checksum_sha256",
-    "description": "Calculate a file's SHA-256 checksum.",
+    "description": "Calculate and return the SHA-256 digest of the file at path. The entire file is read; its contents are not returned or changed.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -614,7 +614,7 @@
   },
   {
     "name": "create_zip",
-    "description": "Create a ZIP archive from a source directory.",
+    "description": "Create or replace zip_path with a ZIP of files beneath source_dir. Existing archives at zip_path are replaced.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -638,7 +638,7 @@
   },
   {
     "name": "unzip_to_folder",
-    "description": "Extract a ZIP archive into a folder.",
+    "description": "Extract zip_path into extract_to after rejecting archive paths that escape the destination. Existing files with the same names may be overwritten.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -662,7 +662,7 @@
   },
   {
     "name": "download_file_https",
-    "description": "Download an HTTPS resource to a local path.",
+    "description": "Fetch the resource at an HTTPS url and write its response body to save_path, replacing an existing file there. The URL is an external destination and the download may be large.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -686,7 +686,7 @@
   },
   {
     "name": "upload_file_https_put",
-    "description": "Upload a local file with an HTTP PUT request.",
+    "description": "Send the contents of file_path in an HTTP PUT request to the HTTPS url. The destination receives the file; use only a destination you control or are authorized to use.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -710,7 +710,7 @@
   },
   {
     "name": "screenshot",
-    "description": "Capture the current desktop screen and return it as an image.",
+    "description": "Capture the current Windows desktop and return the image. It may include private or visible credentials and does not change the screen.",
     "inputSchema": {
       "type": "object",
       "properties": {}
@@ -723,7 +723,7 @@
   },
   {
     "name": "click",
-    "description": "Click the mouse at screen coordinates.",
+    "description": "Click once at screen coordinates x,y. The target app may save, submit, delete, or otherwise act on that click; inspect the screen and target first.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -747,7 +747,7 @@
   },
   {
     "name": "run_code",
-    "description": "Run a terminal command for up to 30 seconds.",
+    "description": "Start command in a Windows process session using the signed-in user's permissions and return its session ID and PID. Commands may change files or contact external services; no elevation is requested.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -770,7 +770,7 @@
   },
   {
     "name": "run_wsl",
-    "description": "Run a command through WSL for up to 30 seconds.",
+    "description": "Start command through Bash in the default WSL distribution and return a process session. Requires WSL and Bash; commands run with that Linux user's permissions and may change files or contact external services.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -793,7 +793,7 @@
   },
   {
     "name": "get_config",
-    "description": "Flicker Link Pro local tool: get config",
+    "description": "Return the connected Windows agent preferences response_chunk_chars and auto_create_parents. These are in-memory settings and reset when the agent restarts.",
     "inputSchema": {
       "type": "object",
       "properties": {}
@@ -806,13 +806,26 @@
   },
   {
     "name": "set_config",
-    "description": "Flicker Link Pro local tool: set config",
+    "description": "Change the running Windows agent preferences response_chunk_chars (1024–1048576) and/or auto_create_parents (boolean). Changes affect default file-read chunk sizes and whether file writes create missing parent folders; settings reset when the agent restarts.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "values": {
           "type": "object",
-          "description": "Editable local preferences"
+          "description": "Editable in-memory agent preferences.",
+          "properties": {
+            "response_chunk_chars": {
+              "type": "integer",
+              "minimum": 1024,
+              "maximum": 1048576,
+              "description": "Default bytes to read when a file-read call omits length."
+            },
+            "auto_create_parents": {
+              "type": "boolean",
+              "description": "Create missing parent folders for write operations."
+            }
+          },
+          "additionalProperties": false
         }
       },
       "required": [
@@ -821,13 +834,13 @@
     },
     "annotations": {
       "readOnlyHint": false,
-      "destructiveHint": true,
+      "destructiveHint": false,
       "openWorldHint": false
     }
   },
   {
     "name": "who_am_i",
-    "description": "Flicker Link Pro local tool: who am i",
+    "description": "Identify the connected Windows computer and return its host, Windows user, and platform. The relay adds the label assigned to this account's paired computer.",
     "inputSchema": {
       "type": "object",
       "properties": {}
@@ -840,7 +853,7 @@
   },
   {
     "name": "get_file_info",
-    "description": "Flicker Link Pro local tool: get file info",
+    "description": "Return basic metadata for an existing file or folder at path. Missing or inaccessible paths return an error; file contents are not read.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -861,7 +874,7 @@
   },
   {
     "name": "list_directory",
-    "description": "Flicker Link Pro local tool: list directory",
+    "description": "List immediate directory entries at path, with offset and page_size pagination. It does not recurse into subfolders.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -890,7 +903,7 @@
   },
   {
     "name": "read_file",
-    "description": "Flicker Link Pro local tool: read file",
+    "description": "Read bytes from path starting at offset, up to length. Return text or Base64 according to base64; the result may contain private file data.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -923,7 +936,7 @@
   },
   {
     "name": "read_multiple_files",
-    "description": "Flicker Link Pro local tool: read multiple files",
+    "description": "Read the requested paths using the same offset and length for each file. The response contains file data and may include private information.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -940,6 +953,11 @@
         "length": {
           "type": "integer",
           "description": "Bytes per file; 0 reads to EOF"
+        },
+        "base64": {
+          "type": "boolean",
+          "default": false,
+          "description": "Return file bytes as Base64 instead of decoded text."
         }
       },
       "required": [
@@ -954,7 +972,7 @@
   },
   {
     "name": "write_file",
-    "description": "Flicker Link Pro local tool: write file",
+    "description": "Write text or Base64 content to path. mode supports overwrite (default), create, append, or at_offset; overwrite replaces existing contents, while at_offset edits an existing file in place.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -991,7 +1009,7 @@
   },
   {
     "name": "edit_block",
-    "description": "Flicker Link Pro local tool: edit block",
+    "description": "Replace old_text with new_text in path only when the match count equals expected_matches. The file is rewritten, so review the target and replacement carefully.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1026,7 +1044,7 @@
   },
   {
     "name": "write_pdf",
-    "description": "Flicker Link Pro local tool: write pdf",
+    "description": "Create or replace the PDF at path using content as text. Optional title and page_size (letter or A4) are applied to the document.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1060,7 +1078,7 @@
   },
   {
     "name": "move_file",
-    "description": "Flicker Link Pro local tool: move file",
+    "description": "Move src to dst using Windows filesystem move behavior. If dst is a file, overwrite must be true to replace it; if dst is a directory, the source is moved inside that directory.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1074,7 +1092,7 @@
         },
         "overwrite": {
           "type": "boolean",
-          "description": "Allow overwrite"
+          "description": "When dst is an existing file, allow replacing it. Defaults to false."
         }
       },
       "required": [
@@ -1090,7 +1108,7 @@
   },
   {
     "name": "list_devices",
-    "description": "Flicker Link Pro local tool: list devices",
+    "description": "List active computers paired to the signed-in account, with their user-assigned labels, last-seen times, and online state. It never lists devices from other accounts.",
     "inputSchema": {
       "type": "object",
       "properties": {}
@@ -1103,7 +1121,7 @@
   },
   {
     "name": "list_processes",
-    "description": "Flicker Link Pro local tool: list processes",
+    "description": "List Windows processes with available PID, name, user, status, CPU, and memory details. This snapshot may include other processes visible to the signed-in Windows account.",
     "inputSchema": {
       "type": "object",
       "properties": {}
@@ -1116,7 +1134,7 @@
   },
   {
     "name": "start_process",
-    "description": "Flicker Link Pro local tool: start process",
+    "description": "Start command as a managed Windows process session and return its session ID and PID. It may keep running after this call and uses the signed-in user's permissions.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1135,13 +1153,13 @@
     },
     "annotations": {
       "readOnlyHint": false,
-      "destructiveHint": false,
+      "destructiveHint": true,
       "openWorldHint": true
     }
   },
   {
     "name": "interact_with_process",
-    "description": "Flicker Link Pro local tool: interact with process",
+    "description": "Read output from the managed session_id and, when input is supplied, write that text to the process's standard input. Input can cause the running program to perform further actions.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1174,7 +1192,7 @@
   },
   {
     "name": "list_sessions",
-    "description": "Flicker Link Pro local tool: list sessions",
+    "description": "List managed process sessions with status, identifiers, and command line, omitting captured output. A command line can contain sensitive text if it was included when starting the process; this does not list every Windows process.",
     "inputSchema": {
       "type": "object",
       "properties": {}
@@ -1187,7 +1205,7 @@
   },
   {
     "name": "force_terminate",
-    "description": "Flicker Link Pro local tool: force terminate",
+    "description": "Terminate the managed session_id or supplied PID. An arbitrary PID requires confirm=true; the hard option currently does not change the termination method. Unsaved work may be lost.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1217,7 +1235,7 @@
   },
   {
     "name": "kill_process",
-    "description": "Flicker Link Pro local tool: kill process",
+    "description": "Terminate the managed session_id or supplied PID. An arbitrary PID requires confirm=true. This may stop unrelated software and lose unsaved work.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1243,7 +1261,7 @@
   },
   {
     "name": "shutdown",
-    "description": "Flicker Link Pro local tool: shutdown",
+    "description": "Terminate the managed process session identified by session_id. Despite the tool name, this does not shut down or restart Windows.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1264,7 +1282,7 @@
   },
   {
     "name": "start_search",
-    "description": "Flicker Link Pro local tool: start search",
+    "description": "Start a background recursive search beneath root, matching filename_pattern and optionally searching file contents for content_query. Returns a search_id; content matches may reveal private file paths and snippets.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1301,7 +1319,7 @@
   },
   {
     "name": "get_more_search_results",
-    "description": "Flicker Link Pro local tool: get more search results",
+    "description": "Return a page of results and progress for search_id. It does not start a new search.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1330,7 +1348,7 @@
   },
   {
     "name": "list_searches",
-    "description": "Flicker Link Pro local tool: list searches",
+    "description": "List search jobs known to the current Windows agent with their status and progress. It does not include search history from other computers.",
     "inputSchema": {
       "type": "object",
       "properties": {}
@@ -1343,7 +1361,7 @@
   },
   {
     "name": "stop_search",
-    "description": "Flicker Link Pro local tool: stop search",
+    "description": "Request cancellation of the background search identified by search_id. Results collected so far may remain available in the current agent session.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1364,7 +1382,7 @@
   },
   {
     "name": "get_recent_tool_calls",
-    "description": "Flicker Link Pro local tool: get recent tool calls",
+    "description": "Return recent tool-call metadata recorded by the current Windows agent, such as call ID, tool name, status, and duration. It does not include full tool results.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1386,7 +1404,7 @@
   },
   {
     "name": "list_remote_tool_calls",
-    "description": "Flicker Link Pro local tool: list remote tool calls",
+    "description": "Return recent call metadata from the current Windows agent. Despite the name, this does not fetch cloud-wide or other-computer call history.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1408,7 +1426,7 @@
   },
   {
     "name": "get_tool_result",
-    "description": "Flicker Link Pro local tool: get tool result",
+    "description": "Look up the local call record for call_id. The current agent stores call metadata, not the original output content.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1437,7 +1455,7 @@
   },
   {
     "name": "review_device_call",
-    "description": "Flicker Link Pro local tool: review device call",
+    "description": "Look up the local call record for call_id. This reports call metadata and does not approve, deny, or revoke a device operation.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1458,7 +1476,7 @@
   },
   {
     "name": "keep_tool_result",
-    "description": "Flicker Link Pro local tool: keep tool result",
+    "description": "Write the supplied content to a new text file in the Windows agent's local state folder. source_call_id is not currently used to retrieve a call result.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -1480,7 +1498,7 @@
   },
   {
     "name": "get_usage_stats",
-    "description": "Flicker Link Pro local tool: get usage stats",
+    "description": "Return runtime counts for this Windows agent's recent calls, managed sessions, and search jobs. It does not report the account's monthly allowance or Stripe billing usage.",
     "inputSchema": {
       "type": "object",
       "properties": {}
@@ -1493,7 +1511,7 @@
   },
   {
     "name": "track_ui_event",
-    "description": "Flicker Link Pro local tool: track ui event",
+    "description": "Acknowledge event_type from the local agent. The current implementation does not persist details; the normal tool-call record may still note that this tool ran.",
     "inputSchema": {
       "type": "object",
       "properties": {

@@ -89,7 +89,8 @@
       "publication": {
         "countries": [],
         "release_notes": "Adds privacy and terms pages, listing URLs, and explicit safety annotations for all 66 tools."
-      }
+      },
+      "onboardingSkill": "./skills/connection-and-security/SKILL.md"
     }
   }
 }

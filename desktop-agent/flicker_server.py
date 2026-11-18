@@ -18,7 +18,10 @@ def path(p):return pathlib.Path(p).expanduser()
 def require_keys(a,*names):
     for n in names:
         if n not in a:raise ValueError('Missing required argument: '+n)
-def ensure_parent(p):p.parent.mkdir(parents=True,exist_ok=True)
+def ensure_parent(p):
+    if p.parent.exists():return
+    if CONFIG.get('auto_create_parents',True):p.parent.mkdir(parents=True,exist_ok=True)
+    else:raise FileNotFoundError(f'Parent directory does not exist: {p.parent}')
 def text_read(p):return path(p).read_text(encoding='utf-8',errors='replace')
 def write_data(p,data,append=False):
     p=path(p);ensure_parent(p)
@@ -97,7 +100,14 @@ def perform(n,a):
     if n=='get_config':return {'configuration':dict(CONFIG)}
     if n=='set_config':
         vals=a['values']
+        if not isinstance(vals,dict):raise ValueError('values must be an object')
         if set(vals)-set(CONFIG):raise ValueError('Unsupported configuration key')
+        if 'response_chunk_chars' in vals:
+            value=vals['response_chunk_chars']
+            if type(value) is not int or not 1024<=value<=1048576:
+                raise ValueError('response_chunk_chars must be an integer from 1024 to 1048576')
+        if 'auto_create_parents' in vals and type(vals['auto_create_parents']) is not bool:
+            raise ValueError('auto_create_parents must be a boolean')
         CONFIG.update(vals);return {'configuration':dict(CONFIG)}
     if n in ('path_info','get_file_info'):
         p=path(a['path']);s=p.stat();return {'path':str(p),'exists':True,'is_file':p.is_file(),'is_dir':p.is_dir(),'size_bytes':s.st_size,'modified_at':s.st_mtime}
@@ -106,10 +116,10 @@ def perform(n,a):
     if n=='list_drives':return {'drives':[f'{c}:\\' for c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' if pathlib.Path(f'{c}:\\').exists()]}
     if n in ('read_file_text','read_file'): 
         if n=='read_file_text':return {'content':text_read(a['path'])}
-        p=path(a['path']);off=int(a.get('offset',0));length=int(a.get('length',65536))
+        p=path(a['path']);off=int(a.get('offset',0));length=int(a.get('length',CONFIG['response_chunk_chars']))
         with p.open('rb') as f:f.seek(off);raw=f.read(length if length else -1)
         return {'content':None if a.get('base64') else raw.decode('utf-8','replace'),'content_base64':base64.b64encode(raw).decode() if a.get('base64') else None,'offset':off,'total_bytes':p.stat().st_size}
-    if n=='read_multiple_files':return {'files':[perform('read_file',{'path':p,'offset':a.get('offset',0),'length':a.get('length',65536),'base64':a.get('base64',False)}) for p in a['paths']]}
+    if n=='read_multiple_files':return {'files':[perform('read_file',{'path':p,'offset':a.get('offset',0),'length':a.get('length',CONFIG['response_chunk_chars']),'base64':a.get('base64',False)}) for p in a['paths']]}
     if n=='read_file_base64_chunk':
         with path(a['path']).open('rb') as f:f.seek(a['offset']);data=f.read(a['length'])
         return {'base64_chunk':base64.b64encode(data).decode(),'bytes_read':len(data)}
@@ -132,6 +142,9 @@ def perform(n,a):
         src=path(a['src']);dst=path(a['dst']);ensure_parent(dst)
         if n=='copy_item':
             shutil.copytree(src,dst) if src.is_dir() else shutil.copy2(src,dst)
+        elif n=='move_file' and dst.is_file():
+            if not a.get('overwrite',False):raise FileExistsError(dst)
+            dst.unlink();shutil.move(src,dst)
         else:shutil.move(src,dst)
         return {'status':'success','destination':str(dst)}
     if n=='delete_item':
@@ -259,10 +272,18 @@ def perform(n,a):
             return {'_image_base64':base64.b64encode(b.getvalue()).decode(),'status':'captured'}
     if n=='write_pdf':
         from reportlab.platypus import SimpleDocTemplate,Paragraph
+        from reportlab.lib.pagesizes import A4,letter
         from reportlab.lib.styles import getSampleStyleSheet
         from xml.sax.saxutils import escape
         dest=path(a['path']);ensure_parent(dest)
-        SimpleDocTemplate(str(dest)).build([Paragraph(escape(x),getSampleStyleSheet()['Normal']) for x in a['content'].split('\n')])
+        page_sizes={'letter':letter,'a4':A4}
+        page_size=str(a.get('page_size','letter')).casefold()
+        if page_size not in page_sizes:raise ValueError('page_size must be letter or A4')
+        styles=getSampleStyleSheet();story=[]
+        title=str(a.get('title','')).strip()
+        if title:story.append(Paragraph(escape(title),styles['Title']))
+        story.extend(Paragraph(escape(line) or '&nbsp;',styles['Normal']) for line in a['content'].split('\n'))
+        SimpleDocTemplate(str(dest),pagesize=page_sizes[page_size]).build(story)
         return {'status':'written','path':str(dest)}
     if n in ('get_recent_tool_calls','list_remote_tool_calls'):
         off=int(a.get('offset',0));size=int(a.get('page_size',100));return {'calls':list(CALLS)[off:off+size]}
