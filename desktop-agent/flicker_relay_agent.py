@@ -35,6 +35,8 @@ STAGING_SERVER = "https://flicker-link-pro-2-staging.onrender.com"
 STAGING_CREDENTIAL_TARGET = "FlickerLinkPro2/StagingDevicePairing"
 DEFAULT_CONSENT_TARGET = "FlickerLinkPro2/DeviceConsent"
 STAGING_CONSENT_TARGET = "FlickerLinkPro2/StagingDeviceConsent"
+CONSUMER_CREDENTIAL_TARGET = "FlickerLinkPro/ConsumerDevicePairing"
+CONSUMER_CONSENT_TARGET = "FlickerLinkPro/ConsumerDeviceConsent"
 CATALOG_NAMES = frozenset(tool["name"] for tool in CATALOG)
 
 
@@ -66,6 +68,10 @@ def _server_confirms_revoked(server_url: str, token: str) -> bool:
 
 
 def _profile_for(server: str | None, profile: str | None) -> str:
+    if profile == "consumer":
+        if server and server.rstrip("/") != DEFAULT_SERVER:
+            raise ValueError("Consumer profile only accepts the production relay")
+        return "consumer"
     if profile not in (None, "default", "staging"):
         raise ValueError("Unknown pairing profile")
     if profile == "staging" or (server and server.rstrip("/") == STAGING_SERVER):
@@ -76,11 +82,15 @@ def _profile_for(server: str | None, profile: str | None) -> str:
 
 
 def _load_for(profile: str):
+    if profile == "consumer":
+        return load_credential(target=CONSUMER_CREDENTIAL_TARGET)
     return (load_credential(target=STAGING_CREDENTIAL_TARGET)
             if profile == "staging" else load_credential())
 
 
 def _consent_target_for(profile: str) -> str:
+    if profile == "consumer":
+        return CONSUMER_CONSENT_TARGET
     return STAGING_CONSENT_TARGET if profile == "staging" else DEFAULT_CONSENT_TARGET
 
 
@@ -89,7 +99,9 @@ def _save_for(profile: str, server: str, token: str):
     if (not saved or saved[0].rstrip("/") != server.rstrip("/") or
             saved[1] != token):
         delete_sensitive_consent(_consent_target_for(profile))
-    if profile == "staging":
+    if profile == "consumer":
+        save_credential(server, token, target=CONSUMER_CREDENTIAL_TARGET)
+    elif profile == "staging":
         save_credential(server, token, target=STAGING_CREDENTIAL_TARGET)
     else:
         save_credential(server, token)
@@ -97,7 +109,9 @@ def _save_for(profile: str, server: str, token: str):
 
 def _delete_for(profile: str):
     delete_sensitive_consent(_consent_target_for(profile))
-    if profile == "staging":
+    if profile == "consumer":
+        delete_credential(target=CONSUMER_CREDENTIAL_TARGET)
+    elif profile == "staging":
         delete_credential(target=STAGING_CREDENTIAL_TARGET)
     else:
         delete_credential()
@@ -343,7 +357,7 @@ def staging_instance_lock():
 def main():
     parser = argparse.ArgumentParser(description="Flicker Link Pro Windows agent")
     parser.add_argument("--server", help="Optional HTTPS relay URL")
-    parser.add_argument("--profile", choices=("default", "staging"), default=None,
+    parser.add_argument("--profile", choices=("default", "staging", "consumer"), default=None,
                         help="Independent credential profile; staging never changes existing pairing")
     parser.add_argument("--token", help="Pairing credential; saved securely")
     parser.add_argument("--logout", action="store_true", help="Forget this device's saved pairing")
