@@ -2,9 +2,9 @@
 
 This per-user installer uses the production Render relay, installs without
 administrator rights, includes the complete 66-tool catalog, and creates a
-desktop shortcut plus a separate sign-out shortcut. The desktop app asks for
-full sensitive-tool access the first time and remembers the decision until the
-app stops or the computer is unpaired.
+desktop shortcut plus a separate sign-out shortcut. The desktop app asks on
+the first sensitive tool call. Approval remains saved across app restarts and
+clears when the user signs out on Windows or revokes the pairing.
 
 The app stores the pairing credential in Windows Credential Manager. The
 installer contains only the public relay address, not an account token or
