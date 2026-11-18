@@ -39,6 +39,11 @@ SERVER_NAME = (
     else "flicker-link-pro"
 )
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+STAGING_OWNER_SUBJECTS = frozenset(
+    subject.strip()
+    for subject in os.getenv("FLICKER_STAGING_OWNER_SUBJECTS", "").split(",")
+    if subject.strip()
+) if SERVER_NAME == "flicker-link-pro-staging" else frozenset()
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 SECRET = os.getenv("FLICKER_SECRET", "")
 OPENAI_APPS_CHALLENGE = os.getenv("OPENAI_APPS_CHALLENGE", "")
@@ -185,7 +190,11 @@ async def browser_server_error(request: Request, _exc: Exception):
 
 def account_usage(owner, *, consume=False):
     try:
-        return device_registry().usage(owner, FREE_CALL_ALLOWANCE, consume=consume)
+        is_owner = owner in STAGING_OWNER_SUBJECTS
+        usage = device_registry().usage(owner, FREE_CALL_ALLOWANCE, consume=consume and not is_owner)
+        if is_owner:
+            return {**(usage or {"has_billing": False}), "unlimited": True, "allowed": True, "owner": True}
+        return usage
     except Exception:
         raise HTTPException(503, "Account usage is temporarily unavailable") from None
 
@@ -627,6 +636,8 @@ async def billing_call(operation, *args):
 @app.post("/billing/checkout")
 async def stripe_checkout(request: Request):
     user = await billing_form(request)
+    if user["sub"] in STAGING_OWNER_SUBJECTS:
+        raise HTTPException(409, "This account already has unlimited owner access.")
     if not CHECKOUT_AVAILABLE:
         raise HTTPException(503, "Checkout is temporarily unavailable")
     result = await billing_call(BILLING.checkout, user["sub"], user.get("email"))
@@ -673,6 +684,7 @@ async def devices(request: Request):
         ACTIVE_DEVICE_IDS.get(user["sub"]) if user["sub"] in ACTIVE_SOCKETS else None
     )
     device_forms = []
+    revoked_forms = []
     for item in items:
         name = html.escape(item["label"], quote=True)
         identity = html.escape(item["id"], quote=True)
@@ -696,7 +708,8 @@ async def devices(request: Request):
             '<input type="hidden" name="csrf" value="' + csrf + '">'
             '<input type="hidden" name="device_id" value="' + identity + '">'
             '<button class="danger" type="submit">Disconnect PC</button></form></div>')
-        device_forms.append(
+        cards = revoked_forms if item["revoked_at"] is not None else device_forms
+        cards.append(
             '<article class="device-card"><div class="device-card-head"><div><h3>' + name + '</h3>'
             '<span class="status ' + status_class + '">' + status + '</span></div>'
             '<p>Last connected: ' + last_seen + '</p></div>' + actions + '</article>')
@@ -704,10 +717,18 @@ async def devices(request: Request):
     output = '<span class="eyebrow">Your account</span><h1>Paired Computers</h1>'
     output += '<div class="account-bar"><span>Signed in as <strong>' + email + '</strong></span>'
     output += '<a class="button secondary" href="/devices">Refresh status</a></div>'
+    if SERVER_NAME == "flicker-link-pro-staging":
+        subject = html.escape(user["sub"])
+        output += ('<details class="panel"><summary>Staging account details</summary>'
+                   f'<p>Account ID for owner access testing: <code>{subject}</code></p></details>')
+    account_header = output
+    output = ""
     if FREE_CALL_ALLOWANCE:
         usage = await asyncio.to_thread(account_usage, user["sub"])
         if usage is None:
             output += '<section class="usage-card"><h2>Tool usage</h2><p>Your first 30-day usage period starts when your computer connects.</p></section>'
+        elif usage.get("owner"):
+            output += '<section class="usage-card"><h2>Tool usage</h2><p class="usage-value">Owner · Unlimited</p><p>Your owner access is free.</p></section>'
         elif usage["unlimited"]:
             output += '<section class="usage-card"><h2>Tool usage</h2><p class="usage-value">Unlimited tool calls</p><p>Your membership is active.</p></section>'
         else:
@@ -733,7 +754,9 @@ async def devices(request: Request):
                 output += ('<form class="usage-card" action="/billing/portal" method="post">'
                            f'<input type="hidden" name="csrf" value="{csrf}">'
                            '<button class="secondary" type="submit">Manage billing or cancel</button></form>')
-    output += '<section class="section" aria-labelledby="computers-heading"><div class="section-intro"><span class="eyebrow">Connection status</span><h2 id="computers-heading">Your computers</h2>'
+    billing_section = output
+    output = account_header
+    output += '<section class="section" aria-labelledby="computers-heading"><div class="section-intro"><h2 id="computers-heading">Your computer</h2>'
     output += '<p>Open Flicker Link Pro on Windows, then refresh this page to check its connection.</p></div>'
     if device_forms:
         output += '<div class="card-list">' + ''.join(device_forms) + '</div>'
@@ -744,7 +767,11 @@ async def devices(request: Request):
                '<input type="hidden" name="csrf" value="' + csrf + '">'
                '<label>Computer name <input name="label" maxlength="80" value="Windows computer" required></label> '
                '<button type="submit">Create pairing token</button></form></section>'
-               '<p style="margin-top:18px"><a href="/support">Get connection help</a></p></section>')
+               '<p style="margin-top:18px"><a href="/support">Get connection help</a></p>')
+    if revoked_forms:
+        output += ('<details class="panel"><summary>Previously paired computers</summary>'
+                   '<div class="card-list">' + ''.join(revoked_forms) + '</div></details>')
+    output += '</section>' + billing_section
     content = output + '''<script>
 document.querySelectorAll('form[data-confirm]').forEach((form)=>form.addEventListener('submit',(event)=>{
   if(!window.confirm(form.dataset.confirm)) event.preventDefault();

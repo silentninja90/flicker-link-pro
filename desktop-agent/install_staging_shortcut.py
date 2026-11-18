@@ -17,7 +17,8 @@ SERVER = "https://flicker-link-pro-2-staging.onrender.com"
 START = """@echo off
 setlocal EnableExtensions DisableDelayedExpansion
 cd /d "%~dp0"
-title Flicker Link Pro 2 - Staging Desktop Agent
+title Flicker Link Pro - Windows Companion (Staging)
+set "PYTHONUTF8=1"
 if not exist "%~dp0.venv\\Scripts\\python.exe" (
   echo Missing Python environment for Flicker Link Pro 2.
   pause

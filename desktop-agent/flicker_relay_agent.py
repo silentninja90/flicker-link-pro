@@ -7,11 +7,13 @@ from __future__ import annotations
 import argparse
 import asyncio
 from contextlib import nullcontext
+from datetime import datetime
 import errno
 import getpass
 import inspect
 import json
 import os
+import platform
 from pathlib import Path
 import re
 import sys
@@ -34,6 +36,10 @@ STAGING_CREDENTIAL_TARGET = "FlickerLinkPro2/StagingDevicePairing"
 DEFAULT_CONSENT_TARGET = "FlickerLinkPro2/DeviceConsent"
 STAGING_CONSENT_TARGET = "FlickerLinkPro2/StagingDeviceConsent"
 CATALOG_NAMES = frozenset(tool["name"] for tool in CATALOG)
+
+
+def console_status(icon: str, message: str) -> None:
+    print(f"[{datetime.now():%H:%M:%S}] {icon}  {message}", flush=True)
 
 
 def _websocket_is_open(ws) -> bool:
@@ -165,7 +171,7 @@ def resolve_pairing(server: str | None, token: str | None,
         _save_for(selected, base, token)
         return base, token
     if saved and saved[0].rstrip("/") == base:
-        print("[OK] Saved device pairing loaded securely from Windows.")
+        console_status("🔒", "Saved pairing loaded from Windows.")
         return base, saved[1]
     new_server, new_token = prompt_pairing(base)
     _save_for(selected, new_server, new_token)
@@ -189,8 +195,8 @@ async def run_relay(server_url: str, token: str,
     direct_staging = (server_url.rstrip("/") == STAGING_SERVER and
                       "proxy" in inspect.signature(websockets.connect).parameters)
     connection_options = {"proxy": None} if direct_staging else {}
-    print("Flicker Link Pro | Tools loaded:", len(CATALOG))
-    print("Connecting securely to", base)
+    console_status("🖥️", f"Computer: {platform.node()} | Tools: {len(CATALOG)}")
+    console_status("🔗", "Connecting securely...")
 
     while True:
         try:
@@ -198,7 +204,7 @@ async def run_relay(server_url: str, token: str,
                 endpoint, max_size=15 * 1024 * 1024,
                 ping_interval=20, ping_timeout=20, **headers, **connection_options
             ) as ws:
-                print("[CONNECTED] Saved pairing accepted. Ready for ChatGPT commands.")
+                console_status("✅", "Online. Ready for ChatGPT.")
                 while True:
                     request = json.loads(await ws.recv())
                     if request.get("method") == "tools/list":
@@ -206,6 +212,8 @@ async def run_relay(server_url: str, token: str,
                     else:
                         params = request.get("params") or {}
                         tool_name = params.get("name") if request.get("method") == "tools/call" else None
+                        if isinstance(tool_name, str) and tool_name in CATALOG_NAMES:
+                            console_status("⚙️", f"Request: {tool_name}")
                         deadline = request.get("_flicker_deadline_unix")
                         if not isinstance(deadline, (int, float)):
                             deadline = None
@@ -270,13 +278,13 @@ async def run_relay(server_url: str, token: str,
                     print("Sign in to staging and generate a fresh device token to retry.")
                     return False
                 print("[RETRY] Pairing status could not be confirmed; keeping saved credentials.")
-            print("[RETRY] Relay unavailable; retrying in 5 seconds.")
+            console_status("⚠️", "Relay unavailable. Retrying in 5 seconds.")
             await asyncio.sleep(5)
         except (websockets.exceptions.ConnectionClosed, ConnectionRefusedError, OSError):
-            print("[DISCONNECTED] Retrying in 5 seconds.")
+            console_status("🔄", "Disconnected. Reconnecting in 5 seconds.")
             await asyncio.sleep(5)
         except Exception as exc:
-            print("[ERROR]", type(exc).__name__, "retrying in 5 seconds.")
+            console_status("⚠️", f"{type(exc).__name__}. Retrying in 5 seconds.")
             await asyncio.sleep(5)
 
 def logout_pairing(profile: str | None = None) -> bool:
@@ -348,6 +356,10 @@ def main():
             raise SystemExit(1)
         return
     selected = _profile_for(args.server, args.profile)
+    print("\n  Flicker Link Pro\n  Windows Companion · Staging", flush=True)
+    print("  ----------------------------------------", flush=True)
+    print("  Keep this window open. You can minimize it.", flush=True)
+    print("  Ctrl+C to disconnect. Use Sign Out to unpair.\n", flush=True)
     lock = staging_instance_lock() if selected == "staging" else nullcontext()
     if lock is None:
         print("[ALREADY RUNNING] The staging agent is already connected or starting.")
@@ -373,7 +385,7 @@ def run_agent(args, selected):
             base, token = prompt_pairing(STAGING_SERVER)
             _save_for("staging", base, token)
     except KeyboardInterrupt:
-        print("\nFlicker Link Pro 2 stopped. Saved pairing retained.")
+        console_status("⏹️", "Disconnected. Saved pairing retained.")
 
 if __name__ == "__main__":
     main()
