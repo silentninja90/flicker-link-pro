@@ -137,7 +137,7 @@ async def robots_txt():
 
 @app.get("/sitemap.xml", include_in_schema=False)
 async def sitemap_xml():
-    pages = ("/", "/setup", "/support", "/privacy", "/terms")
+    pages = ("/", "/setup", "/device-access", "/support", "/privacy", "/terms")
     items = "".join(f"<url><loc>{html.escape(BASE_URL + path)}</loc></url>" for path in pages)
     return Response(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?><urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">"
@@ -497,7 +497,7 @@ async def home(request: Request):
 </section>
 <section class="section" aria-labelledby="access-title"><div class="access-panel"><div><span class="eyebrow">Your access, your choice</span><h2 id="access-title">Understand computer access</h2><p>Flicker Link Pro routes your requested actions through your paired Windows companion.</p></div>
   <ul><li>The companion must be running and connected for computer actions to work.</li><li>Depending on the tool, requests can access files, apps, desktop controls, commands, and system information available to your Windows account.</li><li>The companion asks before granting its full sensitive-tool access. ChatGPT may also request confirmation for individual actions.</li><li>Stop the companion to disconnect temporarily, or sign out/revoke the computer to remove its pairing.</li></ul>
-</div><p style="margin-top:16px"><a href="/privacy">Read the privacy policy</a> · <a href="/support">Get help with setup</a></p></section>
+</div><p style="margin-top:16px"><a href="/device-access">Review device access</a> · <a href="/support">Get help with setup</a></p></section>
 <section class="section" aria-labelledby="faq-title"><div class="section-intro"><span class="eyebrow">Common questions</span><h2 id="faq-title">Before you connect</h2></div>
   <div class="faq"><details><summary>What do I need?</summary><p>A Windows computer with the Flicker Link Pro companion, a Google account, and access to Flicker Link Pro in ChatGPT.</p></details>
   <details><summary>Does my computer need to stay online?</summary><p>Yes. It must be powered on, connected to the internet, and running the companion while you use computer tools.</p></details>
@@ -517,7 +517,7 @@ async def setup(request: Request):
 <div class="steps"><div class="step"><span class="step-number">1</span><strong>Sign in</strong><p>Use the Google account you want linked to this PC.</p></div>
 <div class="step"><span class="step-number">2</span><strong>Create a pairing token</strong><p>From Paired Computers, start pairing and choose a name for your PC.</p></div>
 <div class="step"><span class="step-number">3</span><strong>Finish on Windows</strong><p>Open Flicker Link Pro, and paste the token. Approve sensitive access on Windows when you first need it.</p></div></div>
-<div class="panel\"><h2>Before you begin</h2><ul><li>A Windows PC with the Flicker Link Pro companion installed.</li><li>A Google account for your Flicker Link Pro account.</li><li>Access to Flicker Link Pro in ChatGPT.</li></ul><p>Review <a href="/privacy\">what computer access means</a> before pairing.</p></div>
+<div class="panel"><h2>Before you begin</h2><ul><li>A Windows PC with the Flicker Link Pro companion installed.</li><li>A Google account for your Flicker Link Pro account.</li><li>Access to Flicker Link Pro in ChatGPT.</li></ul><p>Need the Windows app or access in ChatGPT? <a href="/support">Contact support about availability</a>.</p><p>Review <a href="/device-access">what computer access means</a> before pairing.</p></div>
 <div class="alert"><strong>Continue on your Windows PC</strong><p>The companion must be installed and running to finish pairing. Keep your token private; it grants access to the computer.</p></div>
 <div class="actions"><a class="button" href="/auth/google/start?next=%2Fdevices">Continue with Google</a><a class="button secondary" href="/support">Get setup help</a></div>
 <p>After pairing, return to Paired Computers and refresh to check the connection. You can rename or revoke the computer there.</p>'''
@@ -539,6 +539,20 @@ async def support():
 <article class="panel" id="disconnect"><h2>Disconnect or remove a PC</h2><p>Stop the companion to pause its connection. Sign out on Windows or revoke the computer from your account to end its pairing.</p><a href="/devices">Manage paired computers</a></article>
 </div><section class="section"><h2>Contact support</h2><p>Include the error message, Windows version, and what step you were on. Do not include passwords, pairing tokens, private keys, or file contents.</p><a class="button" href="mailto:flickerlinkpro@gmail.com">Email support</a></section>'''
     return HTMLResponse(page_shell("Support", content, reading=True, active="support"))
+
+
+@app.get("/device-access")
+async def device_access():
+    content = """<article class="prose"><h1>Device access</h1>
+<p>Pair one Windows computer you own or are authorized to use. Computer actions work while the Flicker Link Pro companion is running and connected.</p>
+<h2>What the tools can access</h2>
+<p>Depending on the action you request, tools can read or change files, capture the screen, interact with desktop apps, run commands, or return system data available to your Windows account. Requests and results pass through the relay between ChatGPT and your computer.</p>
+<h2>When Windows asks for approval</h2>
+<p>The companion asks when you first request a sensitive action. If you grant full access, that approval lasts until the app stops or the pairing is revoked. ChatGPT can ask for a separate confirmation.</p>
+<h2>How to disconnect</h2>
+<p>Close the Windows companion to pause access. To remove the pairing, use the Windows sign-out shortcut or select Disconnect PC in Paired Computers. You will need a new pairing token to reconnect after that.</p>
+<div class="actions"><a class="button" href="/setup">View setup steps</a><a class="button secondary" href="/privacy">Read the privacy policy</a></div></article>"""
+    return HTMLResponse(page_shell("Device access", content, reading=True))
 
 
 @app.get("/privacy")
@@ -827,7 +841,11 @@ async def pair(request: Request):
         '<span class="eyebrow">Device pairing</span><h1>Finish on your Windows PC</h1>'
         '<p>Open Flicker Link Pro on Windows, paste this token into the companion, then press Enter. '
         'This token grants access to your computer. Do not share it or include it in a support request.</p>'
-        '<code class="token" aria-label="Device pairing token">' + html.escape(created["token"]) + '</code>'
+        '<label for="pair-code">Device pairing token</label>'
+        '<input class="token" id="pair-code" readonly value="' + html.escape(created["token"], quote=True) + '">'
+        '<button class="secondary" id="copy-pair-code" type="button" hidden>Copy pairing token</button>'
+        '<p id="copy-result" role="status"></p>'
+        '<script src="/assets/pairing.js" defer></script>'
         '<div class="alert"><strong>Keep this token private</strong><p>When the companion connects, return to Paired Computers to check its status.</p></div>'
         '<div class="actions"><a class="button" href="/devices">Back to Paired Computers</a>'
         '<a class="button secondary" href="/support">Get help</a></div>'
