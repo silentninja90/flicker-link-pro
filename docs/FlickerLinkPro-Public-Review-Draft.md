@@ -8,15 +8,15 @@
 - Description: Pair one Windows computer to your account and use 66 tools for
   computer health, files, desktop actions, commands, processes, Docker,
   databases, backups, and transfers. The paired Windows app asks for full access
-  on the first high-risk tool call. Approval lasts until the agent stops or the
-  pairing is revoked.
+  on the first high-risk tool call. Approval is stored locally and survives app restarts. It clears when the
+  device is signed out, unpaired, or its pairing is revoked.
 - Product website: https://flicker-link-pro.onrender.com/
 - Support: https://flicker-link-pro.onrender.com/support
-- Privacy: draft now states 30-day revoked-device cleanup eligibility, active
+- Privacy: draft states 30-day revoked-device cleanup eligibility, active
   account usage-counter retention, billing record retention for tax/accounting/
   security/disputes, and support messages for 90 days after issue resolution.
-  Public `/privacy` and `/terms` routes are being prepared in the isolated
-  production checkout; verify them after deployment.
+  Branded `/privacy` and `/terms` routes are implemented in this release
+  branch; they are not live until the branch is deployed.
 - Icon: original `chatgpt-plugin/assets/flicker-link.png`.
 - Countries: all available countries.
 - Commerce: the standalone Flicker Link Pro website offers a US$5 monthly
@@ -46,10 +46,29 @@ sample data. These cases are drafts and must be run on the exact release build.
 
 ## Release evidence still needed
 
-- Review the 66 tools and the approval flow against the public plugin guidelines.
-  The deployed catalog is missing the three required Boolean annotations on
-  all 66 tools. Confirm how irreversible actions receive user confirmation and
-  disclose the Windows agent dependency and broad system access to reviewers.
+- The public website now has a branded responsive homepage and setup guide,
+  signed-out troubleshooting, account/device cards, usage display, and shared
+  privacy/terms/OAuth/pairing/error layouts. The supplied Stripe logo and icon
+  are served by the cloud relay; favicon, robots, and sitemap routes are in the
+  branch. The homepage preview is explicitly illustrative because no redacted
+  companion/device screenshots have been approved. Check the pages at phone,
+  tablet, and desktop widths and review keyboard navigation after staging
+  deployment. No live deployment has been made.
+
+- A local submission draft ZIP was assembled at
+  `artifacts/FlickerLinkPro-2.2.0-submission-draft.zip`. It includes the
+  production MCP configuration, icon, nine skills, and five positive/three
+  negative review cases. The public privacy and terms routes have not been deployed to production,
+  and the required demo recording URL is absent, so this ZIP is not ready to
+  submit.
+- Review the release catalog's explicit Boolean annotations for all 66 tools.
+  They are now present in the unreleased production branch. Confirm the
+  annotations and descriptions against behavior and verify that irreversible
+  actions still receive the client-required human confirmation. The schema
+  review confirmed the owner's choice to keep `shutdown` scoped to managed
+  application sessions. Windows and the Flicker Link Pro agent keep running.
+  The audit and UI-event tools expose limited local metadata. Disclose the
+  Windows agent dependency and broad system access to reviewers.
 - Complete the exact domain-verification challenge on the Render production
   MCP hostname and verify the stable production URL.
 - Verify Eric Williams as the individual publisher on the OpenAI Platform.
@@ -68,9 +87,16 @@ sample data. These cases are drafts and must be run on the exact release build.
   Verify all four listing URLs in a signed-out browser after deployment.
 - Record an actual demo with reviewer access and complete the five positive and
   three negative tests in the publication portal.
-- Prepare the public Windows download and verify install, first high-risk
-  approval, restart reset, sign-out, and uninstall on a clean Windows computer.
-  The available preview installer is unsigned.
+- The consumer-only Windows installer source is in
+  `desktop-agent/installer`. It is locked to the production Render host, signs
+  the app, setup, and uninstaller, and checks for a valid Eric Williams
+  signature. A trusted signing certificate is not available in this workspace,
+  so the production installer has not been built. The existing preview is
+  unsigned. After signing, verify install, first sensitive-action approval,
+  restart persistence, sign-out, and uninstall on a clean Windows computer.
+- The package metadata has no reviewer demo recording URL. Record a short
+  reviewer-accessible walkthrough only after running the five positive and
+  three negative cases on the exact submitted server and Windows build.
 - Build and validate the public ZIP, connect the production MCP server, resolve
   the package and tool scans, and have the publisher complete the attestations
   for review.
