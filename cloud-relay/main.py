@@ -398,7 +398,7 @@ async def home(request: Request):
     user = session(request)
     if user:
         return RedirectResponse("/devices")
-    return HTMLResponse('<html lang="en"><body style="font:18px sans-serif;max-width:580px;margin:70px auto"><h1>Flicker Link Pro</h1><p>Connect your Windows computer to your Flicker Link Pro account.</p><a href="/auth/google/start">Continue with Google</a><p><a href="/support">Get support</a></p></body></html>')
+    return HTMLResponse('<html lang="en"><body style="font:18px sans-serif;max-width:580px;margin:70px auto"><h1>Flicker Link Pro</h1><p>Connect your Windows computer to your Flicker Link Pro account.</p><a href="/auth/google/start">Continue with Google</a><p><a href="/support">Get support</a> · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></p></body></html>')
 
 
 @app.get("/support")
@@ -412,8 +412,63 @@ async def support():
         '<p>Email <a href="mailto:flickerlinkpro@gmail.com">flickerlinkpro@gmail.com</a> '
         'for help with pairing, usage, or removing a computer.</p>'
         '<p>Include the error message and your Windows version. Keep passwords and pairing codes private.</p>'
-        '<p><a href="/devices">Manage your paired computer</a></p></main></body></html>'
+        '<p><a href="/devices">Manage your paired computer</a></p>'
+        '<p><a href="/privacy">Privacy Policy</a> · <a href="/terms">Terms of Service</a></p>'
+        '</main></body></html>'
     )
+
+
+@app.get("/privacy")
+async def privacy():
+    return HTMLResponse('''<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flicker Link Pro Privacy Policy</title></head>
+<body style="font:17px/1.6 system-ui;margin:3rem auto;max-width:48rem;padding:0 1rem">
+<main><h1>Flicker Link Pro Privacy Policy</h1>
+<p><strong>Last updated: November 17, 2026</strong></p>
+<p>Eric Williams operates Flicker Link Pro. This policy covers the Flicker Link Pro website, ChatGPT plugin, cloud relay, and Windows app. For privacy questions or requests, email <a href="mailto:flickerlinkpro@gmail.com">flickerlinkpro@gmail.com</a>.</p>
+<h2>Information we use</h2>
+<ul>
+<li><strong>Google account identifier and verified email:</strong> sign-in, account pairing, showing the signed-in email, and creating a Stripe billing profile.</li>
+<li><strong>Sign-in cookies:</strong> the sign-in exchange cookie expires after 10 minutes; the website session cookie lasts up to 12 hours. Signing out clears the website session.</li>
+<li><strong>Device and pairing details:</strong> device identifier and name, pairing and connection times, revocation time, and a cryptographic digest of the pairing token. The Windows app stores the token in Windows Credential Manager.</li>
+<li><strong>Tool requests and results:</strong> the relay passes requests to your paired computer and results to ChatGPT. Depending on the tool, these can include file contents, paths, screenshots, command output, and system information. The Windows app can save a result locally when you ask it to.</li>
+<li><strong>Usage and subscription details:</strong> account-level call counts and period start, a Stripe customer identifier, and the date through which paid access applies. These enforce call limits and recognize paid access.</li>
+<li><strong>Service logs:</strong> Render logs can include IP addresses, request times, routes, status codes, and operational errors, used to operate, secure, and troubleshoot the service.</li>
+<li><strong>Support messages:</strong> information you send to answer support and privacy requests.</li>
+</ul>
+<h2>Who receives information</h2>
+<ul><li>Google provides sign-in.</li><li>Render hosts the website and relay; Neon hosts account, device, usage, and billing-reference data.</li><li>OpenAI processes tool requests and results when you use Flicker Link Pro in ChatGPT. OpenAI's own policies and settings govern your ChatGPT account and conversations.</li><li>Stripe processes website checkout and billing under its own privacy practices.</li><li>A destination you select for a supported transfer tool receives information needed for that action.</li></ul>
+<h2>Retention and your choices</h2>
+<p>Revoked device records become eligible for deletion after 30 days. The service checks at startup and hourly while running; if it is stopped or unavailable, cleanup runs after it starts again. Neon currently reports a six-hour point-in-time recovery window. Render log availability is 7 to 30 days depending on the workspace plan. Provider retention settings may change.</p>
+<p>Usage counters are kept while your account is active to apply the free allowance and paid access. After account closure, they are removed when no longer needed for security, billing disputes, or legal obligations. Billing records are retained as needed for tax, accounting, security, and dispute obligations. Support messages are kept for 90 days after the issue is resolved, unless needed longer to handle a dispute or legal obligation.</p>
+<p>Stop the Windows app to disconnect temporarily. Use <strong>Flicker Link Pro - Sign Out</strong> on the computer or revoke it from <strong>Paired Computers</strong> to revoke its pairing. Manage or cancel a paid membership from <strong>Manage billing</strong> on the website.</p>
+<p>To request access to, correction of, or deletion of your information, email <a href="mailto:flickerlinkpro@gmail.com">flickerlinkpro@gmail.com</a>. We may ask for information needed to verify the request. Applicable rights depend on where you live. Some records may remain when needed for billing, security, or legal obligations.</p>
+<p><a href="/terms">Terms of Service</a> · <a href="/support">Support</a></p></main></body></html>''')
+
+
+@app.get("/terms")
+async def terms():
+    return HTMLResponse('''<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flicker Link Pro Terms of Service</title></head>
+<body style="font:17px/1.6 system-ui;margin:3rem auto;max-width:48rem;padding:0 1rem">
+<main><h1>Flicker Link Pro Terms of Service</h1>
+<p><strong>Last updated: November 17, 2026</strong></p>
+<p>These terms cover the Flicker Link Pro website, ChatGPT plugin, cloud relay, and Windows app operated by Eric Williams. Contact <a href="mailto:flickerlinkpro@gmail.com">flickerlinkpro@gmail.com</a> for support or billing questions.</p>
+<h2>Your account and computer</h2>
+<p>Use Flicker Link Pro only with a computer you own or are authorized to control. Keep your sign-in and pairing token private. You are responsible for permission to access the files, software, and services involved in each request.</p>
+<p>Flicker Link Pro lets you request actions on a paired Windows computer. Review the action and its target before approving it. Some actions can change or delete files, stop processes, or transfer information. Keep backups of information you need.</p>
+<p>Stop the Windows app to disconnect temporarily. To remove the pairing, use <strong>Flicker Link Pro - Sign Out</strong> or revoke the computer from <strong>Paired Computers</strong> on the website.</p>
+<h2>Acceptable use</h2>
+<p>Use the service lawfully. Access only computers, accounts, and data you have permission to use. Do not use it to access another person's computer or information without authorization, secretly monitor someone, distribute malicious software, bypass access controls, or interfere with another service.</p>
+<h2>Usage and optional membership</h2>
+<p>The free plan includes 15,000 metered tool calls per 30-day period. The first period starts when the computer first connects. Your account page shows usage and the next reset date.</p>
+<p>The Flicker Link Pro website offers an optional unlimited membership for <strong>US$5 per month</strong>. Stripe Checkout shows the price and recurring charge before payment. By confirming the subscription in checkout, you authorize the recurring monthly charge until you cancel.</p>
+<p>To cancel, select <strong>Manage billing</strong> on the website. Cancellation at the end of the billing period stops the next renewal; paid access continues through the date shown in the billing portal. Contact <a href="mailto:flickerlinkpro@gmail.com">flickerlinkpro@gmail.com</a> about incorrect charges or a refund request. Applicable consumer rights continue to apply.</p>
+<h2>Availability</h2>
+<p>Remote actions depend on the Windows app, your computer, network access, and services such as ChatGPT, Google sign-in, and Stripe. Some tools also require software or permissions on your computer. Availability may change during maintenance, outages, or updates.</p>
+<p>See the <a href="/privacy">Privacy Policy</a> for details about information Flicker Link Pro uses. <a href="/support">Support</a></p></main></body></html>''')
 
 
 async def billing_form(request):
