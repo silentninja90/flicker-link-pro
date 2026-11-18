@@ -1,24 +1,94 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "author": {
-    "name": "Flicker Link Pro",
-    "email": "support@flickerlinkpro.app"
+    "name": "Eric Williams",
+    "email": "flickerlinkpro@gmail.com"
   },
   "name": "flicker-link-pro",
-  "version": "2.1.0",
-  "description": "Control your computer remotely from ChatGPT mobile or web across 66 system automation tools.",
+  "version": "2.2.0",
+  "description": "Connect one paired Windows computer to ChatGPT through an authenticated cloud relay and Windows app.",
   "extensions": {
     "com.openai": {
       "interface": {
-        "capabilities": ["Interactive"],
+        "capabilities": ["Control a Windows computer"],
         "category": "Productivity",
         "composerIcon": "./assets/flicker-link.png",
-        "defaultPrompt": "Check the status of my connected laptop and show available tools.",
-        "developerName": "Flicker Link Pro",
+        "defaultPrompt": [
+          "Identify my paired Windows computer.",
+          "Check the system health of my paired computer.",
+          "List files in a folder I specify on my paired computer."
+        ],
+        "developerName": "Eric Williams",
         "displayName": "Flicker Link Pro",
         "logo": "./assets/flicker-link.png",
-        "longDescription": "Remotely execute terminal commands, edit files, manage processes, and automate desktop actions from any ChatGPT device over an authenticated cloud relay.",
-        "shortDescription": "Remote PC control & automation"
+        "longDescription": "Connect one paired Windows computer to ChatGPT using the Flicker Link Pro Windows app and authenticated cloud relay. The 66 tools can report system details, search and read or write files available to the signed-in Windows account, run commands, manage processes and Docker, control desktop input, query databases, create backups, and transfer files to HTTPS destinations you choose. The Windows app asks once for full access at the first sensitive operation; that approval lasts until the app stops or the pairing is revoked. ChatGPT may separately ask you to confirm irreversible actions. Use only with computers and data you are authorized to access. Some tools require WSL, Docker, PostgreSQL, or an interactive desktop.",
+        "shortDescription": "Control your paired Windows PC",
+        "websiteURL": "https://flicker-link-pro.onrender.com/",
+        "supportURL": "https://flicker-link-pro.onrender.com/support",
+        "privacyPolicyURL": "https://flicker-link-pro.onrender.com/privacy",
+        "termsOfServiceURL": "https://flicker-link-pro.onrender.com/terms"
+      },
+      "review": {
+        "test_cases": {
+          "positive": [
+            {
+              "description": "Identify the paired Windows computer",
+              "prompt": "Identify my paired Windows computer.",
+              "tools_triggered": "who_am_i",
+              "expected_behavior": "Return the identity of the authorized paired computer."
+            },
+            {
+              "description": "Read system health",
+              "prompt": "Check the CPU, memory, and disk use on my paired computer.",
+              "tools_triggered": "system_resources",
+              "expected_behavior": "Return current system resource measurements without changing the computer."
+            },
+            {
+              "description": "Inspect a known Windows folder",
+              "prompt": "Check whether C:\\Windows exists and tell me whether it is a directory.",
+              "tools_triggered": "path_info",
+              "expected_behavior": "Return existence and file or directory metadata for the requested path."
+            },
+            {
+              "description": "Create a disposable text file after access approval",
+              "prompt": "Write the text 'Flicker Link Pro review' to C:\\Users\\Public\\FLPReview\\review.txt.",
+              "tools_triggered": "write_file_text",
+              "expected_behavior": "On a fresh pairing, the Windows app asks once for full sensitive-tool access; after approval, create only the requested review file."
+            },
+            {
+              "description": "List Docker containers",
+              "prompt": "List the Docker containers on my paired computer.",
+              "tools_triggered": "docker_containers",
+              "expected_behavior": "Return the container list or a clear message if Docker is unavailable."
+            }
+          ],
+          "negative": [
+            {
+              "description": "Deny first-use sensitive access",
+              "prompt": "Read the designated disposable review file after declining the Windows access warning.",
+              "tools_triggered": "read_file_text",
+              "expected_behavior": "Do not read the file when the local full-access request is denied."
+            },
+            {
+              "description": "Decline deletion confirmation",
+              "prompt": "Delete the designated disposable review file, then decline the confirmation.",
+              "tools_triggered": "delete_item",
+              "expected_behavior": "Do not delete the file when the irreversible-action confirmation is declined."
+            },
+            {
+              "description": "Handle a disconnected Windows app",
+              "prompt": "Identify my paired Windows computer after its desktop app has been stopped.",
+              "tools_triggered": "who_am_i",
+              "expected_behavior": "Report that the computer is disconnected and do not return stale identity or execute another action."
+            }
+          ]
+        },
+        "commerce": true,
+        "commerce_description": "Optional US$5 monthly membership is purchased only on the Flicker Link Pro website. In ChatGPT, the plugin does not display subscription offers, initiate checkout, or link to a purchase; it only applies the account's existing entitlement and free usage allowance."
+      },
+      "publication": {
+        "countries": [],
+        "release_notes": "Adds privacy and terms pages, listing URLs, and explicit safety annotations for all 66 tools."
       }
     }
   }

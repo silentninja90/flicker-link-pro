@@ -3,13 +3,13 @@
   "mcpServers": {
     "flicker-link-pro": {
       "type": "streamable-http",
-      "url": "https://YOUR_DOMAIN/mcp",
+      "url": "https://flicker-link-pro.onrender.com/mcp",
       "extensions": {
         "com.openai": {
           "auth": {
             "type": "oauth2",
-            "authorization_url": "https://YOUR_DOMAIN/oauth/authorize",
-            "client_url": "https://YOUR_DOMAIN/oauth/token",
+            "authorization_url": "https://flicker-link-pro.onrender.com/oauth/authorize",
+            "client_url": "https://flicker-link-pro.onrender.com/oauth/token",
             "scope": "laptop:control",
             "authorization_content_type": "application/x-www-form-urlencoded"
           }
