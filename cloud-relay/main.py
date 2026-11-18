@@ -547,7 +547,7 @@ async def device_access():
 <h2>What the tools can access</h2>
 <p>Depending on the action you request, tools can read or change files, capture the screen, interact with desktop apps, run commands, or return system data available to your Windows account. Requests and results pass through the relay between ChatGPT and your computer.</p>
 <h2>When Windows asks for approval</h2>
-<p>The companion asks when you first request a sensitive action. If you grant full access, that approval lasts until the app stops or the pairing is revoked. ChatGPT can ask for a separate confirmation.</p>
+<p>The companion asks when you first request a sensitive action. If you grant full access, that approval stays saved across app restarts. It clears when you sign out of the Windows app or revoke the pairing. ChatGPT can ask for a separate confirmation.</p>
 <h2>How to disconnect</h2>
 <p>Close the Windows companion to pause access. To remove the pairing, use the Windows sign-out shortcut or select Disconnect PC in Paired Computers. You will need a new pairing token to reconnect after that.</p>
 <div class="actions"><a class="button" href="/setup">View setup steps</a><a class="button secondary" href="/privacy">Read the privacy policy</a></div></article>"""
