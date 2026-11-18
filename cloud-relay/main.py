@@ -23,10 +23,13 @@ from urllib.parse import urlencode, urlsplit
 import httpx
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
+from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 import jwt
 from jwt import PyJWKClient
 from jwt.exceptions import PyJWTError
 from device_registry import DeviceRegistry
+from site_theme import page_shell
 
 BASE_URL = os.getenv("BASE_URL", "https://flicker-link-pro.onrender.com").rstrip("/")
 RESOURCE = BASE_URL + "/mcp"
@@ -112,6 +115,72 @@ async def lifespan(_app):
 
 
 app = FastAPI(title="Flicker Link Pro Cloud Relay", version="2.2.0", lifespan=lifespan)
+app.mount("/assets", StaticFiles(directory=pathlib.Path(__file__).parent / "assets"), name="assets")
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    return Response(
+        (pathlib.Path(__file__).parent / "assets" / "Flicker-Link-Pro-Stripe-Icon.png").read_bytes(),
+        media_type="image/png", headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+@app.get("/robots.txt", include_in_schema=False)
+async def robots_txt():
+    return PlainTextResponse(
+        "User-agent: *\nAllow: /\nDisallow: /devices\nDisallow: /oauth/\nDisallow: /auth/\n"
+        "Sitemap: " + BASE_URL + "/sitemap.xml\n",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
+
+
+@app.get("/sitemap.xml", include_in_schema=False)
+async def sitemap_xml():
+    pages = ("/", "/setup", "/support", "/privacy", "/terms")
+    items = "".join(f"<url><loc>{html.escape(BASE_URL + path)}</loc></url>" for path in pages)
+    return Response(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?><urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">"
+        + items + "</urlset>", media_type="application/xml",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
+
+
+@app.exception_handler(StarletteHTTPException)
+@app.exception_handler(HTTPException)
+async def browser_http_error(request: Request, exc: HTTPException):
+    accepts_html = "text/html" in request.headers.get("accept", "")
+    if not accepts_html or request.url.path in ("/mcp", "/oauth/token", "/billing/webhook"):
+        detail = exc.detail if isinstance(exc.detail, str) else "Request failed"
+        return JSONResponse({"detail": detail}, status_code=exc.status_code, headers=exc.headers)
+    if exc.status_code == 404:
+        title, message = "We couldn’t find that page", "The link may have moved or the address may be incorrect."
+    elif exc.status_code >= 500:
+        title, message = "This page is temporarily unavailable", "Please try again in a moment. If the issue continues, contact support."
+    else:
+        title, message = "We couldn’t complete that step", str(exc.detail)
+    content = (
+        '<section class="error-card"><span class="error-mark">Flicker Link Pro</span>'
+        f'<h1>{html.escape(title)}</h1><p>{html.escape(message)}</p>'
+        '<div class="actions"><a class="button" href="/setup">Setup</a>'
+        '<a class="button secondary" href="/support">Get support</a></div></section>'
+    )
+    return HTMLResponse(page_shell(title, content, reading=True), status_code=exc.status_code, headers=exc.headers)
+
+
+@app.exception_handler(Exception)
+async def browser_server_error(request: Request, _exc: Exception):
+    accepts_html = "text/html" in request.headers.get("accept", "")
+    if not accepts_html or request.url.path in ("/mcp", "/oauth/token", "/billing/webhook"):
+        return JSONResponse({"detail": "Request failed"}, status_code=500)
+    content = (
+        '<section class="error-card\"><span class="error-mark">Flicker Link Pro</span>'
+        '<h1>This page is temporarily unavailable</h1>'
+        '<p>Please try again in a moment. If the issue continues, contact support.</p>'
+        '<div class="actions"><a class="button" href=\"/setup\">Setup</a>'
+        '<a class="button secondary" href=\"/support\">Get support</a></div></section>'
+    )
+    return HTMLResponse(page_shell("Service unavailable", content, reading=True), status_code=500)
 
 
 def account_usage(owner, *, consume=False):
@@ -398,33 +467,83 @@ async def home(request: Request):
     user = session(request)
     if user:
         return RedirectResponse("/devices")
-    return HTMLResponse('<html lang="en"><body style="font:18px sans-serif;max-width:580px;margin:70px auto"><h1>Flicker Link Pro</h1><p>Connect your Windows computer to your Flicker Link Pro account.</p><a href="/auth/google/start">Continue with Google</a><p><a href="/support">Get support</a> · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></p></body></html>')
+    content = '''
+<section class="hero" aria-labelledby="hero-title">
+  <div class="hero-copy"><span class="eyebrow">Your computer, connected to ChatGPT</span>
+    <h1 id="hero-title">Connect ChatGPT to your Windows PC</h1>
+    <p>Pair your Windows computer with Flicker Link Pro to work with files and apps from ChatGPT. You stay in control of the computer and can disconnect it from your account.</p>
+    <div class="actions"><a class="button" href="/setup">Set up my PC</a><a class="button secondary" href="#how-it-works">See how it works</a></div>
+    <p class="support-note">Already paired? <a href="/auth/google/start?next=%2Fdevices">Sign in to manage your computer</a>.</p>
+  </div>
+  <div class="preview-wrap"><div class="device-preview" aria-label="Illustration of a paired Windows computer">
+    <div class="preview-top"><div class="preview-product"><img src="/assets/Flicker-Link-Pro-Stripe-Icon.png" alt="">Flicker Link Pro</div><span>Paired computer</span></div>
+    <div class="preview-device"><span class="computer-glyph" aria-hidden="true"></span><div><div class="device-name">Your Windows PC</div><span class="status">Connection status appears here</span></div></div>
+    <div class="preview-actions"><span>Rename computer</span><span>Disconnect</span></div>
+  </div><p class="preview-caption">Illustrative account preview. Your computer name and status appear after sign-in.</p></div>
+</section>
+<section class="section" id="how-it-works" aria-labelledby="how-title"><div class="section-intro"><span class="eyebrow">A simple setup</span><h2 id="how-title">How connection works</h2><p>Sign in with the account you want to use for this paired computer.</p></div>
+  <div class="grid">
+    <article class="panel"><span class="step-number">1</span><h3>Sign in</h3><p>Use Google to open your Flicker Link Pro account and start a pairing request.</p></article>
+    <article class="panel"><span class="step-number">2</span><h3>Pair your Windows PC</h3><p>Open the Flicker Link Pro companion on Windows, enter the pairing token. The Windows app asks for approval when you first request a sensitive action.</p></article>
+    <article class="panel"><span class="step-number">3</span><h3>Use it in ChatGPT</h3><p>Connect the Flicker Link Pro plugin in ChatGPT. Your paired computer must be running and online.</p></article>
+  </div><div class="actions"><a class="button" href="/setup">View setup steps</a></div>
+</section>
+<section class="section" aria-labelledby="capabilities-title"><div class="section-intro"><span class="eyebrow">What you can do</span><h2 id="capabilities-title">Use your computer from a chat</h2><p>Flicker Link Pro offers tools for common computer work. Available actions depend on Windows, your installed software, and the permissions you grant.</p></div>
+  <div class="grid">
+    <article class="panel"><div class="panel-icon" aria-hidden="true">⌕</div><h3>Find and work with files</h3><p>Search folders, inspect documents, and create or organize files you choose.</p></article>
+    <article class="panel"><div class="panel-icon" aria-hidden="true">▣</div><h3>Check your PC</h3><p>Review system resources, drives, network details, windows, and running processes.</p></article>
+    <article class="panel"><div class="panel-icon" aria-hidden="true">⌘</div><h3>Work with apps</h3><p>Run commands or interact with desktop apps when the companion and required tools are available.</p></article>
+  </div>
+</section>
+<section class="section" aria-labelledby="access-title"><div class="access-panel"><div><span class="eyebrow">Your access, your choice</span><h2 id="access-title">Understand computer access</h2><p>Flicker Link Pro routes your requested actions through your paired Windows companion.</p></div>
+  <ul><li>The companion must be running and connected for computer actions to work.</li><li>Depending on the tool, requests can access files, apps, desktop controls, commands, and system information available to your Windows account.</li><li>The companion asks before granting its full sensitive-tool access. ChatGPT may also request confirmation for individual actions.</li><li>Stop the companion to disconnect temporarily, or sign out/revoke the computer to remove its pairing.</li></ul>
+</div><p style="margin-top:16px"><a href="/privacy">Read the privacy policy</a> · <a href="/support">Get help with setup</a></p></section>
+<section class="section" aria-labelledby="faq-title"><div class="section-intro"><span class="eyebrow">Common questions</span><h2 id="faq-title">Before you connect</h2></div>
+  <div class="faq"><details><summary>What do I need?</summary><p>A Windows computer with the Flicker Link Pro companion, a Google account, and access to Flicker Link Pro in ChatGPT.</p></details>
+  <details><summary>Does my computer need to stay online?</summary><p>Yes. It must be powered on, connected to the internet, and running the companion while you use computer tools.</p></details>
+  <details><summary>How do I disconnect?</summary><p>Stop the companion to pause the connection. To revoke pairing, use the sign-out option on Windows or revoke the computer from your account’s Paired Computers page.</p></details>
+  <details><summary>Where can I get help?</summary><p>Visit <a href="/support">Flicker Link Pro Support</a>. Never send your password or pairing token in a support message.</p></details></div>
+</section>
+<section class="section" aria-labelledby="final-cta"><div class="section-intro"><span class="eyebrow">Ready when you are</span><h2 id="final-cta">Connect your Windows PC</h2><p>Sign in to create a pairing token and manage your computer.</p><a class="button" href="/setup">Set up my PC</a></div></section>
+'''
+    return HTMLResponse(page_shell("Connect ChatGPT to your Windows PC", content))
+
+
+@app.get("/setup")
+async def setup(request: Request):
+    signed_in = bool(session(request))
+    content = '''<span class="eyebrow">Setup guide</span><h1>Connect your Windows PC</h1>
+<p>Keep the browser open while you complete pairing on the Windows computer you want to connect.</p>
+<div class="steps"><div class="step"><span class="step-number">1</span><strong>Sign in</strong><p>Use the Google account you want linked to this PC.</p></div>
+<div class="step"><span class="step-number">2</span><strong>Create a pairing token</strong><p>From Paired Computers, start pairing and choose a name for your PC.</p></div>
+<div class="step"><span class="step-number">3</span><strong>Finish on Windows</strong><p>Open Flicker Link Pro, and paste the token. Approve sensitive access on Windows when you first need it.</p></div></div>
+<div class="panel\"><h2>Before you begin</h2><ul><li>A Windows PC with the Flicker Link Pro companion installed.</li><li>A Google account for your Flicker Link Pro account.</li><li>Access to Flicker Link Pro in ChatGPT.</li></ul><p>Review <a href="/privacy\">what computer access means</a> before pairing.</p></div>
+<div class="alert"><strong>Continue on your Windows PC</strong><p>The companion must be installed and running to finish pairing. Keep your token private; it grants access to the computer.</p></div>
+<div class="actions"><a class="button" href="/auth/google/start?next=%2Fdevices">Continue with Google</a><a class="button secondary" href="/support">Get setup help</a></div>
+<p>After pairing, return to Paired Computers and refresh to check the connection. You can rename or revoke the computer there.</p>'''
+    if signed_in:
+        content = content.replace('href="/auth/google/start?next=%2Fdevices">Continue with Google',
+                                  'href="/devices">Open Paired Computers')
+    return HTMLResponse(page_shell("Setup", content, signed_in=signed_in, reading=True, active="setup"),
+                        headers={"Cache-Control": "no-store"})
 
 
 @app.get("/support")
 async def support():
-    return HTMLResponse(
-        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
-        '<meta name="viewport" content="width=device-width, initial-scale=1">'
-        '<title>Flicker Link Pro Support</title></head>'
-        '<body style="font:18px system-ui;margin:3rem auto;max-width:40rem;padding:0 1rem">'
-        '<main><h1>Flicker Link Pro Support</h1>'
-        '<p>Email <a href="mailto:flickerlinkpro@gmail.com">flickerlinkpro@gmail.com</a> '
-        'for help with pairing, usage, or removing a computer.</p>'
-        '<p>Include the error message and your Windows version. Keep passwords and pairing codes private.</p>'
-        '<p><a href="/devices">Manage your paired computer</a></p>'
-        '<p><a href="/privacy">Privacy Policy</a> · <a href="/terms">Terms of Service</a></p>'
-        '</main></body></html>'
-    )
+    content = '''<span class="eyebrow">Flicker Link Pro help</span><h1>Get support</h1>
+<p>Start with the steps below. If you still need help, email <a href="mailto:flickerlinkpro@gmail.com">flickerlinkpro@gmail.com</a>.</p>
+<div class="grid support-grid">
+<article class="panel" id="signin"><h2>Sign-in trouble</h2><p>Check that your browser can open Google sign-in and that you return to the same Flicker Link Pro account you used to pair your computer.</p><a href="/auth/google/start?next=%2Fdevices">Try signing in</a></article>
+<article class="panel" id="pairing"><h2>Pairing or expired token</h2><p>Sign in, create a fresh pairing token on Paired Computers, then enter it in the Windows companion. Treat the token like a password.</p><a href="/setup">See setup steps</a></article>
+<article class="panel" id="offline"><h2>Computer shows offline</h2><p>Open Flicker Link Pro on Windows, check that the PC has internet access, and refresh Paired Computers.</p><a href="/devices">Check computer status</a></article>
+<article class="panel" id="disconnect"><h2>Disconnect or remove a PC</h2><p>Stop the companion to pause its connection. Sign out on Windows or revoke the computer from your account to end its pairing.</p><a href="/devices">Manage paired computers</a></article>
+</div><section class="section"><h2>Contact support</h2><p>Include the error message, Windows version, and what step you were on. Do not include passwords, pairing tokens, private keys, or file contents.</p><a class="button" href="mailto:flickerlinkpro@gmail.com">Email support</a></section>'''
+    return HTMLResponse(page_shell("Support", content, reading=True, active="support"))
 
 
 @app.get("/privacy")
 async def privacy():
-    return HTMLResponse('''<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Flicker Link Pro Privacy Policy</title></head>
-<body style="font:17px/1.6 system-ui;margin:3rem auto;max-width:48rem;padding:0 1rem">
-<main><h1>Flicker Link Pro Privacy Policy</h1>
+    content = '''<article class="prose"><span class="eyebrow">Your information</span><h1>Privacy Policy</h1>
 <p><strong>Last updated: November 17, 2026</strong></p>
 <p>Eric Williams operates Flicker Link Pro. This policy covers the Flicker Link Pro website, ChatGPT plugin, cloud relay, and Windows app. For privacy questions or requests, email <a href="mailto:flickerlinkpro@gmail.com">flickerlinkpro@gmail.com</a>.</p>
 <h2>Information we use</h2>
@@ -444,16 +563,13 @@ async def privacy():
 <p>Usage counters are kept while your account is active to apply the free allowance and paid access. After account closure, they are removed when no longer needed for security, billing disputes, or legal obligations. Billing records are retained as needed for tax, accounting, security, and dispute obligations. Support messages are kept for 90 days after the issue is resolved, unless needed longer to handle a dispute or legal obligation.</p>
 <p>Stop the Windows app to disconnect temporarily. Use <strong>Flicker Link Pro - Sign Out</strong> on the computer or revoke it from <strong>Paired Computers</strong> to revoke its pairing. Manage or cancel a paid membership from <strong>Manage billing</strong> on the website.</p>
 <p>To request access to, correction of, or deletion of your information, email <a href="mailto:flickerlinkpro@gmail.com">flickerlinkpro@gmail.com</a>. We may ask for information needed to verify the request. Applicable rights depend on where you live. Some records may remain when needed for billing, security, or legal obligations.</p>
-<p><a href="/terms">Terms of Service</a> · <a href="/support">Support</a></p></main></body></html>''')
+<p><a href="/terms">Terms of Service</a> · <a href="/support">Support</a></p></article>'''
+    return HTMLResponse(page_shell("Privacy Policy", content, reading=True))
 
 
 @app.get("/terms")
 async def terms():
-    return HTMLResponse('''<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Flicker Link Pro Terms of Service</title></head>
-<body style="font:17px/1.6 system-ui;margin:3rem auto;max-width:48rem;padding:0 1rem">
-<main><h1>Flicker Link Pro Terms of Service</h1>
+    content = '''<article class="prose"><span class="eyebrow">Terms of service</span><h1>Terms of Service</h1>
 <p><strong>Last updated: November 17, 2026</strong></p>
 <p>These terms cover the Flicker Link Pro website, ChatGPT plugin, cloud relay, and Windows app operated by Eric Williams. Contact <a href="mailto:flickerlinkpro@gmail.com">flickerlinkpro@gmail.com</a> for support or billing questions.</p>
 <h2>Your account and computer</h2>
@@ -468,7 +584,8 @@ async def terms():
 <p>To cancel, select <strong>Manage billing</strong> on the website. Cancellation at the end of the billing period stops the next renewal; paid access continues through the date shown in the billing portal. Contact <a href="mailto:flickerlinkpro@gmail.com">flickerlinkpro@gmail.com</a> about incorrect charges or a refund request. Applicable consumer rights continue to apply.</p>
 <h2>Availability</h2>
 <p>Remote actions depend on the Windows app, your computer, network access, and services such as ChatGPT, Google sign-in, and Stripe. Some tools also require software or permissions on your computer. Availability may change during maintenance, outages, or updates.</p>
-<p>See the <a href="/privacy">Privacy Policy</a> for details about information Flicker Link Pro uses. <a href="/support">Support</a></p></main></body></html>''')
+<p>See the <a href="/privacy">Privacy Policy</a> for details about information Flicker Link Pro uses. <a href="/support">Support</a></p></article>'''
+    return HTMLResponse(page_shell("Terms of Service", content, reading=True))
 
 
 async def billing_form(request):
@@ -547,66 +664,81 @@ async def devices(request: Request):
         name = html.escape(item["label"], quote=True)
         identity = html.escape(item["id"], quote=True)
         if item["revoked_at"] is not None:
-            status = "Revoked"
+            status, status_class = "Revoked", "revoked"
         elif item["id"] == connected_device:
-            status = "Connected"
+            status, status_class = "Connected", "connected"
         else:
-            status = "Paired, waiting for the Windows app"
+            status, status_class = (("Offline · open the Windows app", "offline")
+                                    if item["last_seen_at"] is not None else ("Waiting for your PC", "waiting"))
+        seen_at = item["last_seen_at"]
+        last_seen = (datetime.fromtimestamp(seen_at, timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+                     if seen_at is not None else "Not yet connected")
         actions = "" if item["revoked_at"] is not None else (
-            '<form action="/devices/rename" method="post">'
+            '<div class="device-actions"><form class="inline-form" action="/devices/rename" method="post">'
             '<input type="hidden" name="csrf" value="' + csrf + '">'
             '<input type="hidden" name="device_id" value="' + identity + '">'
-            '<label>Computer name <input name="label" maxlength="80" required value="' + name + '"></label> '
-            '<button type="submit">Save name</button></form>'
-            '<form action="/devices/revoke" method="post">'
+            '<label>Computer name <input name="label" maxlength="80" required value="' + name + '"></label>'
+            '<button class="secondary" type="submit">Save name</button></form>'
+            '<form action="/devices/revoke" method="post" data-confirm="Revoke ' + name + '? This disconnects the computer and it must be paired again before use.">'
             '<input type="hidden" name="csrf" value="' + csrf + '">'
             '<input type="hidden" name="device_id" value="' + identity + '">'
-            '<button type="submit">Revoke this computer</button></form>')
-        device_forms.append('<li><strong>' + name + '</strong> - ' + status + actions + '</li>')
+            '<button class="danger" type="submit">Disconnect PC</button></form></div>')
+        device_forms.append(
+            '<article class="device-card"><div class="device-card-head"><div><h3>' + name + '</h3>'
+            '<span class="status ' + status_class + '">' + status + '</span></div>'
+            '<p>Last connected: ' + last_seen + '</p></div>' + actions + '</article>')
     checkout_head = ""
-    output = '<body style="font:18px sans-serif;max-width:780px;margin:55px auto;padding:0 1rem">'
-    output += '<h2>Flicker Link Pro - Paired Computers</h2><p>Signed in as ' + email + '</p>'
+    output = '<span class="eyebrow">Your account</span><h1>Paired Computers</h1>'
+    output += '<div class="account-bar"><span>Signed in as <strong>' + email + '</strong></span>'
+    output += '<span><a class="button secondary" href="/devices">Refresh status</a> &nbsp; <a href="/auth/logout">Sign out</a></span></div>'
     if FREE_CALL_ALLOWANCE:
         usage = await asyncio.to_thread(account_usage, user["sub"])
         if usage is None:
-            output += '<p>Your first 30 day usage period starts when your computer connects.</p>'
+            output += '<section class="usage-card"><h2>Tool usage</h2><p>Your first 30-day usage period starts when your computer connects.</p></section>'
         elif usage["unlimited"]:
-            output += '<p>Your membership includes unlimited tool calls.</p>'
+            output += '<section class="usage-card"><h2>Tool usage</h2><p class="usage-value">Unlimited tool calls</p><p>Your membership is active.</p></section>'
         else:
-            output += (f'<p>Tool calls used in this period: {usage["used"]:,} of '
-                       f'{usage["allowance"]:,}. Resets {reset_date(usage)}.</p>')
+            percent = min(100, round(100 * usage["used"] / max(usage["allowance"], 1)))
+            output += (f'<section class="usage-card"><h2>Tool usage</h2><p class="usage-value">{usage["used"]:,} <span style="font-size:16px;color:var(--muted);font-weight:400">of {usage["allowance"]:,} calls</span></p>'
+                       f'<div class="meter" role="meter" aria-label="Tool calls used" aria-valuemin="0" aria-valuemax="{usage["allowance"]}" aria-valuenow="{usage["used"]}"><span style="width:{percent}%"></span></div>'
+                       f'<p>Resets {html.escape(reset_date(usage))}.</p></section>')
         if BILLING is not None and usage is not None:
             if request.query_params.get("billing") == "complete" and not usage["unlimited"]:
-                output += '<p>Stripe is confirming your payment. Refresh this page in a moment.</p>'
+                output += '<div class="alert" role="status"><strong>Payment confirmation in progress</strong><p>Refresh this page in a moment to check your plan.</p></div>'
             if CHECKOUT_AVAILABLE and not usage["unlimited"]:
                 checkout_head = '<script defer src="https://js.stripe.com/dahlia/stripe.js"></script>'
                 checkout_key = html.escape(STRIPE_PUBLISHABLE_KEY, quote=True)
-                output += ('<h3>Unlimited membership</h3>'
+                output += ('<section class="usage-card"><h2>Unlimited membership</h2>'
                            f'<p>{RECURRING_BILLING_NOTICE}</p>'
                            '<form id="start-checkout" action="/billing/checkout" method="post" '
                            f'data-stripe-key="{checkout_key}">'
                            f'<input type="hidden" name="csrf" value="{csrf}">'
                            '<button type="submit">Open checkout</button></form>'
                            '<p id="checkout-status" role="status"></p>'
-                           '<div id="checkout-form"></div>' + EMBEDDED_CHECKOUT_SCRIPT)
+                           '<div id="checkout-form"></div></section>' + EMBEDDED_CHECKOUT_SCRIPT)
             if usage["has_billing"]:
-                output += ('<form action="/billing/portal" method="post">'
+                output += ('<form class="usage-card" action="/billing/portal" method="post">'
                            f'<input type="hidden" name="csrf" value="{csrf}">'
-                           '<button type="submit">Manage billing or cancel</button></form>')
-    output += '<ul>' + ''.join(device_forms) + '</ul>'
-    output += '<p>Open Flicker Link Pro on your Windows computer, then refresh this page to check its connection.</p>'
-    output += ('<form action="/devices/pair" method="post">'
+                           '<button class="secondary" type="submit">Manage billing or cancel</button></form>')
+    output += '<section class="section" aria-labelledby="computers-heading"><div class="section-intro"><span class="eyebrow">Connection status</span><h2 id="computers-heading">Your computers</h2>'
+    output += '<p>Open Flicker Link Pro on Windows, then refresh this page to check its connection.</p></div>'
+    if device_forms:
+        output += '<div class="card-list">' + ''.join(device_forms) + '</div>'
+    else:
+        output += '<div class="empty"><h3>No computer paired yet</h3><p>Create a pairing token, then enter it in the Windows companion.</p></div>'
+    output += ('<section class="panel" style="margin-top:20px"><h3>Pair a Windows computer</h3>'
+               '<form class="inline-form" action="/devices/pair" method="post">'
                '<input type="hidden" name="csrf" value="' + csrf + '">'
-               '<label>Computer name <input name="label" maxlength="80" value="Windows computer"></label> '
-               '<button type="submit">Pair a new computer</button></form>'
-               '<p><a href="/support">Get support</a></p>'
-               '<p><a href="/auth/logout">Sign out of website</a></p></body></html>')
-    return HTMLResponse(
-        '<!doctype html><html lang="en"><head><meta charset="utf-8">'
-        '<meta name="viewport" content="width=device-width, initial-scale=1">'
-        '<title>Flicker Link Pro</title>' + checkout_head + '</head>' + output,
-        headers={"Cache-Control": "no-store"},
-    )
+               '<label>Computer name <input name="label" maxlength="80" value="Windows computer" required></label> '
+               '<button type="submit">Create pairing token</button></form></section>'
+               '<p style="margin-top:18px"><a href="/support">Get connection help</a></p></section>')
+    content = output + '''<script>
+document.querySelectorAll('form[data-confirm]').forEach((form)=>form.addEventListener('submit',(event)=>{
+  if(!window.confirm(form.dataset.confirm)) event.preventDefault();
+}));
+</script>'''
+    return HTMLResponse(page_shell("Paired Computers", content, signed_in=True) .replace(
+        '</head>', checkout_head + '</head>'), headers={"Cache-Control": "no-store"})
 
 
 EMBEDDED_CHECKOUT_SCRIPT = """
@@ -691,14 +823,16 @@ async def pair(request: Request):
         created = device_registry().issue(user["sub"], str(form.get("label", "Windows computer")))
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
-    return HTMLResponse(
-        '<html><body style="font:16px sans-serif;max-width:900px;margin:50px auto">'
-        '<h2>Device pairing token</h2>'
-        '<p>Open Flicker Link Pro on your Windows computer. Paste the token below into the app when it asks for the pairing token, then press Enter.'
-        ' Treat this credential like a password and do not share it.</p>'
-        '<pre style="white-space:pre-wrap;overflow-wrap:anywhere;background:#eee;padding:15px">'
-        + html.escape(created["token"]) +
-        '</pre><p><a href="/devices">Back to paired computers</a></p></body></html>',
+    content = (
+        '<span class="eyebrow">Device pairing</span><h1>Finish on your Windows PC</h1>'
+        '<p>Open Flicker Link Pro on Windows, paste this token into the companion, then press Enter. '
+        'This token grants access to your computer. Do not share it or include it in a support request.</p>'
+        '<code class="token" aria-label="Device pairing token">' + html.escape(created["token"]) + '</code>'
+        '<div class="alert"><strong>Keep this token private</strong><p>When the companion connects, return to Paired Computers to check its status.</p></div>'
+        '<div class="actions"><a class="button" href="/devices">Back to Paired Computers</a>'
+        '<a class="button secondary" href="/support">Get help</a></div>'
+    )
+    return HTMLResponse(page_shell("Device pairing", content, signed_in=True, reading=True),
         headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
 
 @app.post("/devices/rename")
@@ -781,16 +915,17 @@ async def authorize(request: Request):
                    state=data["state"], scope=data["scope"])
     client_name = html.escape(data["client_name"], quote=True)
     target_host = html.escape(urlsplit(data["redirect_uri"]).netloc, quote=True)
-    return HTMLResponse('<html><body style="font:17px sans-serif;max-width:650px;margin:60px auto">'
-        '<h2>Authorize Flicker Link Pro</h2><p>' + client_name +
-        ' requests access to the full Flicker Link Pro tool catalog for your paired computer.' +
-        '</p><p>Redirect destination: <strong>' + target_host + '</strong></p>'
-        '<p>Only approve if you initiated this connection in ChatGPT.</p>'
-        '<form method="post" action="/oauth/approve"><input type="hidden" name="consent" value="' +
+    content = ('<span class="eyebrow">Secure connection</span><h1>Connect Flicker Link Pro</h1>'
+        '<p><strong>' + client_name + '</strong> is requesting access to the Flicker Link Pro tools for your paired computer.</p>'
+        '<section class="panel"><h2>What this allows</h2><p>ChatGPT can send your requested actions to your paired Windows companion while it is connected. Depending on the tool, actions may read or change files, use apps, run commands, or access system information.</p>'
+        '<p>Only continue if you started this connection in ChatGPT.</p><p>Redirect destination: <strong>' + target_host + '</strong></p></section>'
+        '<form class="actions" method="post" action="/oauth/approve"><input type="hidden" name="consent" value="' +
         html.escape(consent, quote=True) + '"><input type="hidden" name="csrf" value="' +
         html.escape(user["csrf"], quote=True) + '">'
         '<button type="submit" name="decision" value="allow">Allow computer access</button> '
-        '<button type="submit" name="decision" value="deny">Deny</button></form></body></html>')
+        '<button class="secondary" type="submit" name="decision" value="deny">Deny</button></form>'
+        '<p><a href="/support">Review connection help</a></p>')
+    return HTMLResponse(page_shell("Connect Flicker Link Pro", content, signed_in=True, reading=True))
 
 def oauth_callback(redirect_uri, params):
     separator = "&" if urlsplit(redirect_uri).query else "?"
