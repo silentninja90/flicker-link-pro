@@ -850,6 +850,19 @@ EMBEDDED_CHECKOUT_SCRIPT = """
 </script>
 """
 
+@app.get("/devices/pair/status/{device_id}")
+async def pairing_status(request: Request, device_id: str):
+    user = session(request)
+    if not user:
+        raise HTTPException(401, "Sign in first")
+    owner = user["sub"]
+    items = await asyncio.to_thread(lambda: device_registry().list_owned(owner))
+    if not any(item["id"] == device_id and item["revoked_at"] is None for item in items):
+        raise HTTPException(404, "Pairing unavailable")
+    connected = owner in ACTIVE_SOCKETS and ACTIVE_DEVICE_IDS.get(owner) == device_id
+    return JSONResponse({"connected": connected}, headers={"Cache-Control": "no-store"})
+
+
 @app.post("/devices/pair")
 async def pair(request: Request):
     check_origin(request)
@@ -872,7 +885,10 @@ async def pair(request: Request):
         '<button class="secondary" id="copy-pair-code" type="button" hidden>Copy pairing token</button>'
         '<p id="copy-result" role="status"></p>'
         '<script src="/assets/pairing.js" defer></script>'
-        '<div class="alert"><strong>Keep this token private</strong><p>When the companion connects, return to Paired Computers to check its status.</p></div>'
+        '<p>Keep this token private.</p>'
+        '<div class="panel"><strong>Connection status</strong>'
+        '<p id="pairing-status" role="status" data-device-id="' + html.escape(created["id"], quote=True) + '">'
+        'Waiting for your Windows companion to connect.</p></div>'
         '<div class="actions"><a class="button" href="/devices">Back to Paired Computers</a>'
         '<a class="button secondary" href="/support">Get help</a></div>'
     )
