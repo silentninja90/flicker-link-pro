@@ -93,6 +93,14 @@ PENDING_CALLS = {}
 REDEEMED_CODES = {}  # one-time authorization code ID -> JWT expiration timestamp
 # Authorization codes are invalidated on every process restart.
 PROCESS_CODE_KEY = secrets.token_urlsafe(48)
+REFRESH_TTL = 90 * 86400
+
+
+def oauth_grant_types():
+    grants = ["authorization_code"]
+    if os.getenv("DATABASE_URL", "").strip():
+        grants.append("refresh_token")
+    return grants
 
 async def purge_revoked_devices():
     while True:
@@ -349,7 +357,7 @@ async def authorization_metadata():
             "token_endpoint": BASE_URL + "/oauth/token",
             "registration_endpoint": BASE_URL + "/oauth/register",
             "response_types_supported": ["code"],
-            "grant_types_supported": ["authorization_code"],
+            "grant_types_supported": oauth_grant_types(),
             "token_endpoint_auth_methods_supported": ["none"],
             "code_challenge_methods_supported": ["S256"],
             "scopes_supported": [SCOPES],
@@ -370,7 +378,7 @@ async def register(request: Request):
     return JSONResponse({"client_id": client_id, "client_name": name,
                          "redirect_uris": redirect_uris,
                          "token_endpoint_auth_method": "none",
-                         "grant_types": ["authorization_code"],
+                         "grant_types": oauth_grant_types(),
                          "response_types": ["code"]}, status_code=201)
 
 class GoogleCallbackAccessLogFilter(logging.Filter):
@@ -1017,8 +1025,12 @@ async def token_endpoint(request: Request):
     grant = str(form.get("grant_type", ""))
     client_id = str(form.get("client_id", ""))
     oauth_client(client_id)
-    if form.get("resource") != RESOURCE:
+    if form.get("resource") != RESOURCE and not (grant == "refresh_token" and "resource" not in form):
         raise HTTPException(400, "Invalid resource indicator")
+    refresh_enabled = "refresh_token" in oauth_grant_types()
+    refresh = secrets.token_urlsafe(48) if refresh_enabled else None
+    expires_at = int(time.time()) + REFRESH_TTL
+    grant_id = None
     if grant == "authorization_code":
         code = verify(str(form.get("code", "")), "auth_code", BASE_URL + "/authcode")
         verifier = str(form.get("code_verifier", ""))
@@ -1030,11 +1042,28 @@ async def token_endpoint(request: Request):
             raise HTTPException(400, "Invalid authorization code or PKCE proof")
         consume_auth_code(code["jti"], code["exp"])
         sub = code["sub"]
+        if refresh is not None:
+            grant_id = await asyncio.to_thread(
+                lambda: device_registry().issue_oauth_grant(sub, digest(client_id), refresh, expires_at)
+            )
+    elif grant == "refresh_token" and refresh is not None:
+        previous = str(form.get("refresh_token", ""))
+        rotated = None
+        if 43 <= len(previous) <= 128:
+            rotated = await asyncio.to_thread(
+                lambda: device_registry().rotate_oauth_grant(previous, refresh, digest(client_id), expires_at)
+            )
+        if rotated is None:
+            return JSONResponse({"error": "invalid_grant"}, status_code=400,
+                                headers={"Cache-Control": "no-store", "Pragma": "no-cache"})
+        grant_id, sub = rotated
     else:
         raise HTTPException(400, "Unsupported grant type")
-    access = sign("access", sub, RESOURCE, 3600, scope=SCOPES)
-    return {"access_token": access,
-            "token_type": "Bearer", "expires_in": 3600, "scope": SCOPES}
+    access = sign("access", sub, RESOURCE, 3600, scope=SCOPES, grant_id=grant_id)
+    response = {"access_token": access, "token_type": "Bearer", "expires_in": 3600, "scope": SCOPES}
+    if refresh is not None:
+        response["refresh_token"] = refresh
+    return JSONResponse(response, headers={"Cache-Control": "no-store", "Pragma": "no-cache"})
 
 @app.websocket("/ws/device")
 async def device_websocket(websocket: WebSocket):
@@ -1103,6 +1132,10 @@ async def mcp(request: Request):
         if SCOPES not in account.get("scope", "").split():
             return unauthorized()
     except HTTPException:
+        return unauthorized()
+    if account.get("grant_id") and not await asyncio.to_thread(
+        lambda: device_registry().oauth_grant_active(account["grant_id"], account["sub"])
+    ):
         return unauthorized()
     body = await request.body()
     if len(body) > 1024 * 1024:

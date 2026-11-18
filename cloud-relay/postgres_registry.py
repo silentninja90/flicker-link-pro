@@ -47,6 +47,15 @@ class PostgresDeviceRegistry:
                     cur.execute("""CREATE INDEX IF NOT EXISTS revoked_devices_by_date
                                    ON device_credentials(revoked_at)
                                    WHERE revoked_at IS NOT NULL""")
+                    cur.execute("""CREATE TABLE IF NOT EXISTS oauth_refresh_grants (
+                        id TEXT PRIMARY KEY,
+                        owner_sub TEXT NOT NULL,
+                        client_hash TEXT NOT NULL,
+                        refresh_digest TEXT NOT NULL UNIQUE,
+                        expires_at BIGINT NOT NULL
+                    )""")
+                    cur.execute("""CREATE INDEX IF NOT EXISTS oauth_refresh_grants_by_owner
+                                   ON oauth_refresh_grants(owner_sub)""")
                     if not self.meter_usage:
                         return
                     cur.execute("""CREATE TABLE IF NOT EXISTS account_usage (
@@ -72,6 +81,32 @@ class PostgresDeviceRegistry:
 
     def _digest(self, token: str) -> str:
         return hmac.new(self.secret, token.encode("utf-8"), hashlib.sha256).hexdigest()
+
+    def issue_oauth_grant(self, owner: str, client_hash: str, token: str, expires_at: int) -> str:
+        grant_id = uuid.uuid4().hex
+        with closing(self._connect()) as conn, conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM oauth_refresh_grants WHERE owner_sub=%s AND expires_at<=%s",
+                        (owner, int(time.time())))
+            cur.execute("""INSERT INTO oauth_refresh_grants
+                           (id, owner_sub, client_hash, refresh_digest, expires_at)
+                           VALUES (%s,%s,%s,%s,%s)""",
+                        (grant_id, owner, client_hash, self._digest(token), expires_at))
+        return grant_id
+
+    def rotate_oauth_grant(self, old: str, new: str, client_hash: str, expires_at: int):
+        with closing(self._connect()) as conn, conn, conn.cursor() as cur:
+            cur.execute("""UPDATE oauth_refresh_grants SET refresh_digest=%s, expires_at=%s
+                           WHERE refresh_digest=%s AND client_hash=%s AND expires_at>%s
+                           RETURNING id, owner_sub""",
+                        (self._digest(new), expires_at, self._digest(old), client_hash, int(time.time())))
+            return cur.fetchone()
+
+    def oauth_grant_active(self, grant_id: str, owner: str) -> bool:
+        with closing(self._connect()) as conn, conn, conn.cursor() as cur:
+            cur.execute("""SELECT 1 FROM oauth_refresh_grants
+                           WHERE id=%s AND owner_sub=%s AND expires_at>%s""",
+                        (grant_id, owner, int(time.time())))
+            return cur.fetchone() is not None
 
     def issue(self, owner_sub: str, label: str = "Windows computer") -> dict:
         if not owner_sub or len(owner_sub) > 300:
@@ -194,7 +229,10 @@ class PostgresDeviceRegistry:
                     cur.execute("""UPDATE device_credentials SET revoked_at=%s
                                    WHERE owner_sub=%s AND id=%s AND revoked_at IS NULL""",
                                 (int(time.time()), owner_sub, device_id))
-                    return cur.rowcount == 1
+                    if cur.rowcount != 1:
+                        return False
+                    cur.execute("DELETE FROM oauth_refresh_grants WHERE owner_sub=%s", (owner_sub,))
+                    return True
 
     def revoke_credential(self, token: str) -> bool:
         if not isinstance(token, str) or not token.startswith("flk2_") or len(token) > 150:
@@ -203,6 +241,10 @@ class PostgresDeviceRegistry:
             with conn:
                 with conn.cursor() as cur:
                     cur.execute("""UPDATE device_credentials SET revoked_at=%s
-                                   WHERE key_digest=%s AND revoked_at IS NULL""",
+                                   WHERE key_digest=%s AND revoked_at IS NULL RETURNING owner_sub""",
                                 (int(time.time()), self._digest(token)))
-                    return cur.rowcount == 1
+                    row = cur.fetchone()
+                    if row is None:
+                        return False
+                    cur.execute("DELETE FROM oauth_refresh_grants WHERE owner_sub=%s", (row[0],))
+                    return True
