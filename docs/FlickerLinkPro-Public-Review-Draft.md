@@ -8,8 +8,8 @@
 - Description: Pair one Windows computer to your account and use 66 tools for
   computer health, files, desktop actions, commands, processes, Docker,
   databases, backups, and transfers. The paired Windows app asks for full access
-  on the first high-risk tool call. Approval lasts until the agent stops or the
-  pairing is revoked.
+  on the first high-risk tool call. Approval is stored locally and survives app restarts. It clears when the
+  device is signed out, unpaired, or its pairing is revoked.
 - Product website: https://flicker-link-pro.onrender.com/
 - Support: https://flicker-link-pro.onrender.com/support
 - Privacy: draft states 30-day revoked-device cleanup eligibility, active
@@ -58,7 +58,7 @@ sample data. These cases are drafts and must be run on the exact release build.
 - A local submission draft ZIP was assembled at
   `artifacts/FlickerLinkPro-2.2.0-submission-draft.zip`. It includes the
   production MCP configuration, icon, nine skills, and five positive/three
-  negative review cases. The public privacy and terms routes are not deployed,
+  negative review cases. The public privacy and terms routes have not been deployed to production,
   and the required demo recording URL is absent, so this ZIP is not ready to
   submit.
 - Review the release catalog's explicit Boolean annotations for all 66 tools.
@@ -93,7 +93,7 @@ sample data. These cases are drafts and must be run on the exact release build.
   signature. A trusted signing certificate is not available in this workspace,
   so the production installer has not been built. The existing preview is
   unsigned. After signing, verify install, first sensitive-action approval,
-  restart reset, sign-out, and uninstall on a clean Windows computer.
+  restart persistence, sign-out, and uninstall on a clean Windows computer.
 - The package metadata has no reviewer demo recording URL. Record a short
   reviewer-accessible walkthrough only after running the five positive and
   three negative cases on the exact submitted server and Windows build.

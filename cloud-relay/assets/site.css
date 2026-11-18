@@ -126,6 +126,10 @@ h3{font-size:20px}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 .support-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 [hidden] { display: none !important; }
+.product-shot { margin: 0; }
+.product-shot > img { position: relative; display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 22px 70px #02040c88; }
+.product-shot figcaption { padding: 0 12px; }
+[hidden] { display: none !important; }
 .token { margin-top: 8px; }
 .account-bar, .device-card-head, .panel { overflow-wrap: anywhere; }
 .inline-form label { min-width: min(220px, 100%); }

@@ -475,11 +475,10 @@ async def home(request: Request):
     <div class="actions"><a class="button" href="/setup">Set up my PC</a><a class="button secondary" href="#how-it-works">See how it works</a></div>
     <p class="support-note">Already paired? <a href="/auth/google/start?next=%2Fdevices">Sign in to manage your computer</a>.</p>
   </div>
-  <div class="preview-wrap"><div class="device-preview" aria-label="Illustration of a paired Windows computer">
-    <div class="preview-top"><div class="preview-product"><img src="/assets/Flicker-Link-Pro-Stripe-Icon.png" alt="">Flicker Link Pro</div><span>Paired computer</span></div>
-    <div class="preview-device"><span class="computer-glyph" aria-hidden="true"></span><div><div class="device-name">Your Windows PC</div><span class="status">Connection status appears here</span></div></div>
-    <div class="preview-actions"><span>Rename computer</span><span>Disconnect</span></div>
-  </div><p class="preview-caption">Illustrative account preview. Your computer name and status appear after sign-in.</p></div>
+  <figure class="preview-wrap product-shot">
+    <img src="/assets/paired-computers-preview.png" alt="Flicker Link Pro Paired Computers page showing a connected computer, revoked pairings, and the option to pair a Windows computer.">
+    <figcaption class="preview-caption">Paired Computers on Flicker Link Pro, captured from the staging account.</figcaption>
+  </figure>
 </section>
 <section class="section" id="how-it-works" aria-labelledby="how-title"><div class="section-intro"><span class="eyebrow">A simple setup</span><h2 id="how-title">How connection works</h2><p>Sign in with the account you want to use for this paired computer.</p></div>
   <div class="grid">
