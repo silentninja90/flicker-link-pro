@@ -704,7 +704,7 @@ async def devices(request: Request):
     checkout_head = ""
     output = '<span class="eyebrow">Your account</span><h1>Paired Computers</h1>'
     output += '<div class="account-bar"><span>Signed in as <strong>' + email + '</strong></span>'
-    output += '<span><a class="button secondary" href="/devices">Refresh status</a> &nbsp; <a href="/auth/logout">Sign out</a></span></div>'
+    output += '<a class="button secondary" href="/devices">Refresh status</a></div>'
     if FREE_CALL_ALLOWANCE:
         usage = await asyncio.to_thread(account_usage, user["sub"])
         if usage is None:
