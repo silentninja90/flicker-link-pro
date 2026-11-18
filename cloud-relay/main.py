@@ -39,6 +39,11 @@ SERVER_NAME = (
     else "flicker-link-pro"
 )
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+UNMETERED_ACCOUNT_SUBJECTS = frozenset(
+    subject.strip()
+    for subject in os.getenv("FLICKER_UNMETERED_ACCOUNT_SUBJECTS", "").split(",")
+    if subject.strip()
+) if BASE_URL == "https://flicker-link-pro.onrender.com" else frozenset()
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 SECRET = os.getenv("FLICKER_SECRET", "")
 OPENAI_APPS_CHALLENGE = os.getenv("OPENAI_APPS_CHALLENGE", "")
@@ -185,7 +190,11 @@ async def browser_server_error(request: Request, _exc: Exception):
 
 def account_usage(owner, *, consume=False):
     try:
-        return device_registry().usage(owner, FREE_CALL_ALLOWANCE, consume=consume)
+        unmetered = owner in UNMETERED_ACCOUNT_SUBJECTS
+        usage = device_registry().usage(owner, FREE_CALL_ALLOWANCE, consume=consume and not unmetered)
+        if unmetered:
+            return {**(usage or {"has_billing": False}), "unlimited": True, "allowed": True}
+        return usage
     except Exception:
         raise HTTPException(503, "Account usage is temporarily unavailable") from None
 
@@ -627,6 +636,8 @@ async def billing_call(operation, *args):
 @app.post("/billing/checkout")
 async def stripe_checkout(request: Request):
     user = await billing_form(request)
+    if user["sub"] in UNMETERED_ACCOUNT_SUBJECTS:
+        raise HTTPException(409, "Unlimited access is already active.")
     if not CHECKOUT_AVAILABLE:
         raise HTTPException(503, "Checkout is temporarily unavailable")
     result = await billing_call(BILLING.checkout, user["sub"], user.get("email"))
@@ -709,7 +720,7 @@ async def devices(request: Request):
         if usage is None:
             output += '<section class="usage-card"><h2>Tool usage</h2><p>Your first 30-day usage period starts when your computer connects.</p></section>'
         elif usage["unlimited"]:
-            output += '<section class="usage-card"><h2>Tool usage</h2><p class="usage-value">Unlimited tool calls</p><p>Your membership is active.</p></section>'
+            output += '<section class="usage-card"><h2>Tool usage</h2><p class="usage-value">Unlimited tool calls</p><p>Unlimited access is active.</p></section>'
         else:
             percent = min(100, round(100 * usage["used"] / max(usage["allowance"], 1)))
             output += (f'<section class="usage-card"><h2>Tool usage</h2><p class="usage-value">{usage["used"]:,} <span style="font-size:16px;color:var(--muted);font-weight:400">of {usage["allowance"]:,} calls</span></p>'
