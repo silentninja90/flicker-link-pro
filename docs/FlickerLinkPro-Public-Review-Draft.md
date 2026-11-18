@@ -56,11 +56,10 @@ sample data. These cases are drafts and must be run on the exact release build.
   They are now present in the unreleased production branch. Confirm the
   annotations and descriptions against behavior and verify that irreversible
   actions still receive the client-required human confirmation. The schema
-  review found that `shutdown` currently terminates a managed process session,
-  not Windows; the remaining audit and UI-event tools expose limited local
-  metadata rather than cloud-wide records. Decide whether those behaviors meet
-  the intended listing before submission. Disclose the Windows agent dependency
-  and broad system access to reviewers.
+  review confirmed the owner's choice to keep `shutdown` scoped to managed
+  application sessions. Windows and the Flicker Link Pro agent keep running.
+  The audit and UI-event tools expose limited local metadata. Disclose the
+  Windows agent dependency and broad system access to reviewers.
 - Complete the exact domain-verification challenge on the Render production
   MCP hostname and verify the stable production URL.
 - Verify Eric Williams as the individual publisher on the OpenAI Platform.

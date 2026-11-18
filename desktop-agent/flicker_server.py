@@ -195,7 +195,16 @@ def perform(n,a):
     if n=='interact_with_process':return job_result(a)
     if n=='list_sessions':return {'sessions':[{k:v for k,v in j.items() if k not in ('process','output')} for j in JOBS.values()]}
     if n in ('process_list','list_processes'):return {'processes':process_list()}
-    if n in ('process_kill','kill_process','force_terminate','shutdown'):
+    if n == 'shutdown':
+        if not isinstance(a, dict) or set(a) != {'session_id'}:
+            raise ValueError('Provide only a managed application session_id from list_sessions')
+        session_id = a['session_id']
+        if not isinstance(session_id, str) or not session_id:
+            raise ValueError('session_id must be a nonempty string')
+        if session_id not in JOBS:
+            raise ValueError('Application session not found. Use list_sessions to find a session started by Flicker Link Pro.')
+        return perform('kill_process', {'session_id': session_id})
+    if n in ('process_kill','kill_process','force_terminate'):
         pid=a.get('pid');sid=a.get('session_id')
         if sid:pid=JOBS[sid]['pid']
         if not sid and not a.get('confirm',False) and n!='process_kill':raise ValueError('confirm=true required for arbitrary PID')

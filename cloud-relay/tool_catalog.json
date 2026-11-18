@@ -1261,18 +1261,19 @@
   },
   {
     "name": "shutdown",
-    "description": "Terminate the managed process session identified by session_id. Despite the tool name, this does not shut down or restart Windows.",
+    "description": "Request that a managed application session started by Flicker Link Pro stop, including its child processes. Use a session_id from list_sessions. Windows and Flicker Link Pro stay running. Unsaved work in the application may be lost.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "session_id": {
           "type": "string",
-          "description": "Managed process session; not OS shutdown"
+          "description": "Managed application session ID returned by list_sessions"
         }
       },
       "required": [
         "session_id"
-      ]
+      ],
+      "additionalProperties": false
     },
     "annotations": {
       "readOnlyHint": false,
