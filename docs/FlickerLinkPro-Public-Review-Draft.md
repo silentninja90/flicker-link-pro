@@ -8,8 +8,9 @@
 - Description: Pair one Windows computer to your account and use 66 tools for
   computer health, files, desktop actions, commands, processes, Docker,
   databases, backups, and transfers. The paired Windows app asks for full access
-  on the first high-risk tool call. Approval is stored locally and survives app restarts. It clears when the
-  device is signed out, unpaired, or its pairing is revoked.
+  on the first high-risk tool call. Approval is stored locally and survives app
+  restarts. It clears when the device is signed out, unpaired, or its pairing
+  is revoked.
 - Product website: https://flicker-link-pro.onrender.com/
 - Support: https://flicker-link-pro.onrender.com/support
 - Privacy: draft states 30-day revoked-device cleanup eligibility, active
@@ -50,10 +51,11 @@ sample data. These cases are drafts and must be run on the exact release build.
   signed-out troubleshooting, account/device cards, usage display, and shared
   privacy/terms/OAuth/pairing/error layouts. The supplied Stripe logo and icon
   are served by the cloud relay; favicon, robots, and sitemap routes are in the
-  branch. The homepage preview is explicitly illustrative because no redacted
-  companion/device screenshots have been approved. Check the pages at phone,
-  tablet, and desktop widths and review keyboard navigation after staging
-  deployment. No live deployment has been made.
+  branch. The homepage now uses the user-provided Paired Computers staging
+  screenshot. The staging site is deployed and the public pages were checked at
+  320, 390, 768, and 1440 pixels. The screenshot shows the account's device
+  labels and connection history, so keep it limited to the product website.
+  The production pages still need deployment and review.
 
 - A local submission draft ZIP was assembled at
   `artifacts/FlickerLinkPro-2.2.0-submission-draft.zip`. It includes the
