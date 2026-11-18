@@ -69,9 +69,13 @@ sample data. These cases are drafts and must be run on the exact release build.
   Verify all four listing URLs in a signed-out browser after deployment.
 - Record an actual demo with reviewer access and complete the five positive and
   three negative tests in the publication portal.
-- Prepare the public Windows download and verify install, first high-risk
-  approval, restart reset, sign-out, and uninstall on a clean Windows computer.
-  The available preview installer is unsigned.
+- The consumer-only Windows installer source is in
+  `desktop-agent/installer`. It is locked to the production Render host, signs
+  the app, setup, and uninstaller, and checks for a valid Eric Williams
+  signature. A trusted signing certificate is not available in this workspace,
+  so the production installer has not been built. The existing preview is
+  unsigned. After signing, verify install, first sensitive-action approval,
+  restart reset, sign-out, and uninstall on a clean Windows computer.
 - Build and validate the public ZIP, connect the production MCP server, resolve
   the package and tool scans, and have the publisher complete the attestations
   for review.
