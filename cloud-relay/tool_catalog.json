@@ -18,6 +18,11 @@
         "connection_string",
         "sql"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": true
     }
   },
   {
@@ -39,6 +44,11 @@
       "required": [
         "log_path"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -60,6 +70,11 @@
         "source_folder",
         "backup_vault"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -84,6 +99,11 @@
         "window_title",
         "keys_to_send"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": true
     }
   },
   {
@@ -107,6 +127,11 @@
         "x",
         "y"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -126,6 +151,11 @@
       "required": [
         "text"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": true
     }
   },
   {
@@ -144,6 +174,11 @@
       "required": [
         "keys"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": true
     }
   },
   {
@@ -152,6 +187,11 @@
     "inputSchema": {
       "type": "object",
       "properties": {}
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -178,6 +218,11 @@
         "window_title",
         "action"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": true
     }
   },
   {
@@ -186,6 +231,11 @@
     "inputSchema": {
       "type": "object",
       "properties": {}
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -194,6 +244,11 @@
     "inputSchema": {
       "type": "object",
       "properties": {}
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -209,6 +264,11 @@
       "required": [
         "pid"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
     }
   },
   {
@@ -217,6 +277,11 @@
     "inputSchema": {
       "type": "object",
       "properties": {}
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -242,6 +307,11 @@
         "container_name_or_id",
         "action"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
     }
   },
   {
@@ -250,6 +320,11 @@
     "inputSchema": {
       "type": "object",
       "properties": {}
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -258,6 +333,11 @@
     "inputSchema": {
       "type": "object",
       "properties": {}
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -273,6 +353,11 @@
       "required": [
         "path"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -288,6 +373,11 @@
       "required": [
         "path"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -307,6 +397,11 @@
         "root_dir",
         "filename"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -322,6 +417,11 @@
       "required": [
         "path"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -341,6 +441,11 @@
         "path",
         "content"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
     }
   },
   {
@@ -364,6 +469,11 @@
         "offset",
         "length"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -387,6 +497,11 @@
         "path",
         "base64_data"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
     }
   },
   {
@@ -402,6 +517,11 @@
       "required": [
         "path"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -421,6 +541,11 @@
         "src",
         "dst"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
     }
   },
   {
@@ -440,6 +565,11 @@
         "src",
         "dst"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
     }
   },
   {
@@ -455,6 +585,11 @@
       "required": [
         "path"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
     }
   },
   {
@@ -470,6 +605,11 @@
       "required": [
         "path"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -489,6 +629,11 @@
         "zip_path",
         "source_dir"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
     }
   },
   {
@@ -508,6 +653,11 @@
         "zip_path",
         "extract_to"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
     }
   },
   {
@@ -527,6 +677,11 @@
         "url",
         "save_path"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": true
     }
   },
   {
@@ -546,6 +701,11 @@
         "url",
         "file_path"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": true
     }
   },
   {
@@ -554,6 +714,11 @@
     "inputSchema": {
       "type": "object",
       "properties": {}
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -573,6 +738,11 @@
         "x",
         "y"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": true
     }
   },
   {
@@ -591,6 +761,11 @@
       "required": [
         "command"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": true
     }
   },
   {
@@ -609,6 +784,11 @@
       "required": [
         "command"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": true
     }
   },
   {
@@ -617,6 +797,11 @@
     "inputSchema": {
       "type": "object",
       "properties": {}
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -633,6 +818,11 @@
       "required": [
         "values"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
     }
   },
   {
@@ -641,6 +831,11 @@
     "inputSchema": {
       "type": "object",
       "properties": {}
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -657,6 +852,11 @@
       "required": [
         "path"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -681,6 +881,11 @@
       "required": [
         "path"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -709,6 +914,11 @@
       "required": [
         "path"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -735,6 +945,11 @@
       "required": [
         "paths"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -767,6 +982,11 @@
       "required": [
         "path"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
     }
   },
   {
@@ -797,6 +1017,11 @@
         "old_text",
         "new_text"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
     }
   },
   {
@@ -826,6 +1051,11 @@
         "path",
         "content"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
     }
   },
   {
@@ -851,6 +1081,11 @@
         "src",
         "dst"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
     }
   },
   {
@@ -859,6 +1094,11 @@
     "inputSchema": {
       "type": "object",
       "properties": {}
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -867,6 +1107,11 @@
     "inputSchema": {
       "type": "object",
       "properties": {}
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -887,6 +1132,11 @@
       "required": [
         "command"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": true
     }
   },
   {
@@ -915,6 +1165,11 @@
       "required": [
         "session_id"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": true
     }
   },
   {
@@ -923,6 +1178,11 @@
     "inputSchema": {
       "type": "object",
       "properties": {}
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -948,6 +1208,11 @@
           "description": "Force kill"
         }
       }
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
     }
   },
   {
@@ -969,6 +1234,11 @@
           "description": "Required for arbitrary PID"
         }
       }
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
     }
   },
   {
@@ -985,6 +1255,11 @@
       "required": [
         "session_id"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
     }
   },
   {
@@ -1017,6 +1292,11 @@
       "required": [
         "root"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -1041,6 +1321,11 @@
       "required": [
         "search_id"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -1049,6 +1334,11 @@
     "inputSchema": {
       "type": "object",
       "properties": {}
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -1065,6 +1355,11 @@
       "required": [
         "search_id"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "openWorldHint": false
     }
   },
   {
@@ -1082,6 +1377,11 @@
           "description": "Page size"
         }
       }
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -1099,6 +1399,11 @@
           "description": "Page size"
         }
       }
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -1123,6 +1428,11 @@
       "required": [
         "call_id"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -1139,6 +1449,11 @@
       "required": [
         "call_id"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -1156,6 +1471,11 @@
           "description": "Text to save"
         }
       }
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -1164,6 +1484,11 @@
     "inputSchema": {
       "type": "object",
       "properties": {}
+    },
+    "annotations": {
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   },
   {
@@ -1184,6 +1509,11 @@
       "required": [
         "event_type"
       ]
+    },
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "openWorldHint": false
     }
   }
 ]

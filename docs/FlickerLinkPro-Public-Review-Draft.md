@@ -46,10 +46,11 @@ sample data. These cases are drafts and must be run on the exact release build.
 
 ## Release evidence still needed
 
-- Review the 66 tools and the approval flow against the public plugin guidelines.
-  The deployed catalog is missing the three required Boolean annotations on
-  all 66 tools. Confirm how irreversible actions receive user confirmation and
-  disclose the Windows agent dependency and broad system access to reviewers.
+- Review the release catalog's explicit Boolean annotations for all 66 tools.
+  They are now present in the unreleased production branch. Confirm the
+  annotations and descriptions against behavior and verify that irreversible
+  actions still receive the client-required human confirmation. Disclose the
+  Windows agent dependency and broad system access to reviewers.
 - Complete the exact domain-verification challenge on the Render production
   MCP hostname and verify the stable production URL.
 - Verify Eric Williams as the individual publisher on the OpenAI Platform.
